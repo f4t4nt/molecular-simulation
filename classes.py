@@ -1,4 +1,5 @@
 import numpy as np 
+import jax.numpy as jnp
 import pickle as pl
 
 class molDyn:
@@ -39,6 +40,9 @@ class molDyn:
     self.K_delta = 76.28
     self.K_gamma = 44.
     self.K_phi = 2.836
+
+    self.massC = 12.0107
+    self.massH = 1.00784
 
   def calcPairs(self):
     for i in range(len(self.bonds)):
@@ -163,7 +167,7 @@ class molDyn:
     for i in range(self.v.shape[0]):
       self.kineticEnergy += 0.5 * np.linalg.norm(self.v[i])
   
-  def calcForce(self):
+  def calcForceManual(self):
     originalPE = self.potentialEnergy
 
     if not originalPE == 0:
@@ -175,7 +179,7 @@ class molDyn:
           self.pos[i, j] -= h
 
   def update(self):
-    self.calcForce()
+    self.calcForceManual()
 
     self.pos += self.v * self.dt
     self.v += self.F * self.dt
@@ -227,5 +231,5 @@ sim = molDyn(
       [1]
     ])
 
-for i in range(10):
+for i in range(1000):
   sim.update()
