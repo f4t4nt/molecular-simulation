@@ -1,6 +1,30 @@
-import numpy as np 
-import jax.numpy as jnp
+import numpy as np
 import pickle as pl
+from enum import Enum
+
+class atoms(Enum):
+  C = 0
+  H = 1
+
+ethane = {
+    "C0" : {
+      "type" : atoms.C,
+      "neighbors" : ["C1", "H0", "H1", "H2"],
+      "position" : np.matrix([0.77, 0, 0])
+    },
+    "C1" : {
+      "type" : atoms.C,
+      "neighbors" : ["C0", "H3", "H4", "H5"],
+      "position" : np.matrix([-0.77, 0, 0])
+    },
+    "H0" : {
+      "type" : atoms.H,
+      "neighbors" : ["C0"]
+    }
+  }
+
+
+
 
 class molDyn:
   def __init__(self, dt, atoms, pos0, v0, bonds):
@@ -34,12 +58,12 @@ class molDyn:
 
     self.ccTorsionalAngles = np.zeros((self.numCcTorsionalAngles, 1))
 
-    self.K_b = 573.8
-    self.K_a = 222.
-    self.K_theta = 53.58
-    self.K_delta = 76.28
-    self.K_gamma = 44.
-    self.K_phi = 2.836
+    self.K_cc = 573.8
+    self.K_ch = 222.
+    self.K_ccc = 53.58
+    self.K_hch = 76.28
+    self.K_cch = 44.
+    self.K_ccTrsnl = 2.836
 
     self.massC = 12.0107
     self.massH = 1.00784
@@ -142,22 +166,22 @@ class molDyn:
     self.potentialEnergy = 0
 
     for i in range(len(self.ccDistances)):
-      self.potentialEnergy += 0.5 * self.K_b * np.square(np.linalg.norm(self.ccDistances[i]))
+      self.potentialEnergy += 0.5 * self.K_cc * np.square(np.linalg.norm(self.ccDistances[i]))
 
     for i in range(len(self.chDistances)):
-      self.potentialEnergy += 0.5 * self.K_a * np.square(np.linalg.norm(self.chDistances[i]))
+      self.potentialEnergy += 0.5 * self.K_ch * np.square(np.linalg.norm(self.chDistances[i]))
 
     for i in range(len(self.cccBondAngles)):
-      self.potentialEnergy += 0.5 * self.K_theta * np.square(self.cccBondAngles[i][0])
+      self.potentialEnergy += 0.5 * self.K_ccc * np.square(self.cccBondAngles[i][0])
 
     for i in range(len(self.hchBondAngles)):
-      self.potentialEnergy += 0.5 * self.K_delta * np.square(self.hchBondAngles[i][0])
+      self.potentialEnergy += 0.5 * self.K_hch * np.square(self.hchBondAngles[i][0])
 
     for i in range(len(self.cchBondAngles)):
-      self.potentialEnergy += 0.5 * self.K_gamma * np.square(self.cchBondAngles[i][0])
+      self.potentialEnergy += 0.5 * self.K_cch * np.square(self.cchBondAngles[i][0])
 
     for i in range(len(self.ccTorsionalAngles)):
-      self.potentialEnergy += 0.5 * self.K_phi * (1 + np.cos(3 * self.ccTorsionalAngles[i][0]))
+      self.potentialEnergy += 0.5 * self.K_ccTrsnl * (1 + np.cos(3 * self.ccTorsionalAngles[i][0]))
     
     return self.potentialEnergy
 
@@ -198,8 +222,7 @@ class molDyn:
 dt = 1e-3
 sim = molDyn(
   dt,
-  # True = C, False = H
-  np.array([True, True, False, False, False, False, False, False]),
+  np.array([atoms.C, atoms.C, atoms.H, atoms.H, atoms.H, atoms.H, atoms.H, atoms.H]),
   np.matrix([
       [0., 0., 0.],
       [2., 0., 0.],
