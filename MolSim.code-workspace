@@ -1,0 +1,8 @@
+{
+	"folders": [
+		{
+			"uri": "vscode-remote://wsl+ubuntu-20.04/mnt/d/Users/nisha/source/repos/MolSim"
+		}
+	],
+	"remoteAuthority": "wsl+ubuntu-20.04"
+}

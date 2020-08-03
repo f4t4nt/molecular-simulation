@@ -43,18 +43,6 @@ class atoms(Enum):
   H = 1
 
 ethane = {
-    # "Info" : {
-    #     "Atoms" : [
-    #         "C0", 
-    #         "C1",
-    #         "H0",
-    #         "H1",
-    #         "H2",
-    #         "H3",
-    #         "H4",
-    #         "H5"
-    #     ]
-    # },
     "C0" : {
         "Type" : atoms.C,
         "Mass" : 10,
@@ -291,7 +279,7 @@ def createStruct(mol):
         transform = posArray[idx]
         print(atoms[idx])
         pos = transform * origin
-        print("( %3.2f, %3.2f, %3.2f)" %(pos[0, 0], pos[1, 0], pos[2, 0]))
+        print("\"Position\" : np.matrix([%3.2f, %3.2f, %3.2f])" %(pos[0, 0], pos[1, 0], pos[2, 0]))
         print()
 
 def recCreateStruct(mol, posDict, posArray, posVisited, currAtom):

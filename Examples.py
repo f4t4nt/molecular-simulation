@@ -35,9 +35,6 @@ for k,v in ethane.iteritems():
     ind_k = lookup_k_all[v.type.name + ethane[atm_n].type.name] # CH vs HC
     nn_indices[ind_k].append(np.array([lookup[k], lookup[atm_n]])
 
-           
-            
-            
 all_cc_dists = dist_matrix[cc_indices]
 V_cc = K_cc*np.sum(np.square(all_cc_dists))
 
