@@ -82,7 +82,7 @@ class mol:
     # kcal to joules
     # amu to kg
 
-    self.A2m = 10e-10
+    self.A2m = 1e-10
     self.kcal2J = 4184
     self.amu2kg = 1.660539e-27
 
@@ -154,11 +154,20 @@ class mol:
   # creates variable matrices
 
   def initMatrices(self):
-    self.posMatrix = np.array([atom[1]["Position"] for atom in self.atomArray])
+    # angstroms
+    self.posMatrix = np.array([(atom[1]["Position"]) for atom in self.atomArray])
+    # angstroms/second
     self.velMatrix = np.zeros((len(self.atomArray), 3))
+    # angstroms/second^2
     self.accelMatrix = np.zeros((len(self.atomArray), 3))
+    # newtons
     self.forceMatrix = np.zeros((len(self.atomArray), 3))
+    # atomc masses
     self.massMatrix = np.array([atom[1]["Type"].value for atom in self.atomArray])
+    # joules
+    self.potential = 0
+    # joules
+    self.kinetic = 0
 
   # calculates length AB given positions
 
@@ -234,17 +243,17 @@ class mol:
 
   def kineticAtom_(self, M, V, nplib):
     v_mag = nplib.sqrt(nplib.sum(nplib.square(V)))
-    return 0.5 * M * v_mag ** 2
+    return 0.5 * M * v_mag ** 2 * self.amu2kg * self.A2m ** 2 
 
   def kineticAtom_np(self, M, V):
     return self.kineticAtom_(M, V, np)
 
-  # calculates kinetic energy of molecule given masses and velocity
+  # calculates kinetic energy of molecule given masses and velocities
 
   def calcKinetic(self, M, V):
     kineticAtom = jax.vmap(self.kineticAtom_np, in_axes = (0, 0))
 
-    self.kinetic = np.sum(kineticAtom(M, V)) * self.amu2kg * self.A2m ** 2
+    self.kinetic = np.sum(kineticAtom(M, V))
 
     return self.kinetic
 
@@ -252,14 +261,36 @@ class mol:
 
   def calcForce(self, P):
     gradient_v = jax.grad(self.calcPotential)
-    self.forceMatrix = -1 * gradient_v(P)
+
+    self.forceMatrix = -1 * gradient_v(P) / self.A2m
 
     return self.forceMatrix
+
+  # calculates acceleration matrix of single atom given mass and force
+
+  def accelAtom_(self, M, F, nplib):
+    return F / M / self.amu2kg / self.A2m 
+
+  def accelAtom_np(self, M, F):
+    return self.accelAtom_(M, F, np)
+
+  # calculates acceleration matrix gives masses and forces
+
+  def calcAccel(self, M, F):
+    accelAtom = jax.vmap(self.accelAtom_np, in_axes = (0, 0))
+
+    self.accelMatrix = accelAtom(M, F)
+
+    return self.accelMatrix
 
   def update(self):
     self.calcPotential(self.posMatrix)
     self.calcKinetic(self.massMatrix, self.velMatrix)
     self.calcForce(self.posMatrix)
+    self.calcAccel(self.massMatrix, self.forceMatrix)
+
+    self.posMatrix += self.dt * self.velMatrix
+    self.velMatrix += self.dt * self.accelMatrix
 
     print("potential:")
     print(self.potential)
