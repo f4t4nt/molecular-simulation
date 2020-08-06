@@ -168,6 +168,8 @@ class mol:
     self.potential = 0
     # joules
     self.kinetic = 0
+    # seconds
+    self.t = 0
 
   # calculates length AB given positions
 
@@ -181,32 +183,37 @@ class mol:
 
   # calculates angle ABC given positions
 
-  def angle_(self, P, nplib):
+  def cosAngle_(self, P, nplib):
     r1 = P[0,:] - P[1,:]
     r2 = P[2,:] - P[1,:]
     dot = nplib.sum(nplib.multiply(r1, r2))
     r1_mag = nplib.sqrt(nplib.sum(nplib.square(r1)))
     r2_mag = nplib.sqrt(nplib.sum(nplib.square(r2)))
-    angle = nplib.arccos(dot / (r1_mag * r2_mag))
-    return angle
+    return dot / (r1_mag * r2_mag)
+
+  def cosAngle_np(self, P):
+    return self.cosAngle_(P, np)
+
+  def angle_(self, P, nplib):
+    return nplib.arccos(self.cosAngle_(P, nplib))
 
   def angle_np(self, P):
     return self.angle_(P, np)
 
   # calculates torsional angle ABCD given positions
 
-  def torsionalAngle_(self, P, nplib):
+  def cosTorsionalAngle_(self, P, nplib):
     r1 = P[0,:] - P[1,:]
     r2 = P[1,:] - P[2,:]
-    r3 = P[2,:] - P[3,:]
+    r3 = P[3,:] - P[2,:]
     cp_12 = np.cross(r1, r2)
     cp_32 = np.cross(r3, r2)
     cp = np.array([cp_12, np.zeros(3), cp_32])
-    torsionalAngle = self.angle_(cp, nplib)
-    return torsionalAngle
+    cosTorsionalAngle = self.cosAngle_(cp, nplib)
+    return cosTorsionalAngle
 
-  def torsionalAngle_np(self, P):
-    return self.torsionalAngle_(P, np)
+  def cosTorsionalAngle_np(self, P):
+    return self.cosTorsionalAngle_(P, np)
 
   # calculates potential energy of molecule given positions
 
@@ -232,10 +239,14 @@ class mol:
     if len(self.cchTriples) != 0:
       self.potential += 0.5 * np.sum(np.square(angle(P[self.cchTriples]))) * self.K_cch * self.kcal2J / self.N
 
-    torsionalAngle = jax.vmap(self.torsionalAngle_np, in_axes = (0, ))
+    cosTorsionalAngle = jax.vmap(self.cosTorsionalAngle_np, in_axes = (0, ))
 
     if len(self.quads) != 0:
-      self.potential += 0.5 * np.sum(1 + np.cos(3 * torsionalAngle(P[self.quads]))) * self.K_ccTorsional * self.kcal2J / self.N
+      cosAngle = cosTorsionalAngle(P[self.quads])
+      self.potential += 0.5 \
+        * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
+        * self.K_ccTorsional * self.kcal2J \
+        / self.N
 
     return self.potential
 
@@ -291,24 +302,34 @@ class mol:
 
     self.posMatrix += self.dt * self.velMatrix
     self.velMatrix += self.dt * self.accelMatrix
+    self.t += self.dt
 
-    print("potential:")
-    print(self.potential)
-    print("kinetic:")
-    print(self.kinetic)
-    print("total:")
-    print(self.potential + self.kinetic)
-    print()
-    print("posMatrix:")
-    print(self.posMatrix)
-    print("velMatrix:")
-    print(self.velMatrix)
-    print("accelMatrix")
-    print(self.accelMatrix)
+    if int(round(self.t * 1e15)) % 20 == 0 or self.t == self.dt:
+      print("t:")
+      print(self.t)
+      print("potential:")
+      print(self.potential)
+      print("kinetic:")
+      print(self.kinetic)
+      print("total:")
+      print(self.potential + self.kinetic)
+      print()
+      print("posMatrix:")
+      print(self.posMatrix)
+      print("velMatrix:")
+      print(self.velMatrix)
+      print("accelMatrix")
+      print(self.accelMatrix)
+      print()
+    elif int(round(self.t * 1e15)) % 10 == 0:
+      print("t:")
+      print(self.t)
+      print()
 
-dt = 1e-12
+dt = 1e-15
 sim = mol(ethane, dt)
-sim.update()
+for i in range(1000):
+  sim.update()
 
 # class molV2:
 #   def __init__ (self, atoms):
