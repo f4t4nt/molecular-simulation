@@ -4,6 +4,7 @@ import jax as jax
 import jax.numpy as np
 import numpy as onp
 import pickle as pl
+import time as time
 
 # masses in amu
 class atoms(Enum):
@@ -57,6 +58,7 @@ class mol:
   def __init__ (self, atoms, dt):
     self.atoms = atoms
     self.dt = dt
+    self.initJax()
 
     self.initAtomArrays()
     self.initPairs()
@@ -160,6 +162,7 @@ class mol:
     self.velMatrix = np.zeros((len(self.atomArray), 3))
     # angstroms/second^2
     self.accelMatrix = np.zeros((len(self.atomArray), 3))
+    self.prevAccelMatrix = np.zeros((len(self.atomArray), 3))
     # newtons
     self.forceMatrix = np.zeros((len(self.atomArray), 3))
     # atomc masses
@@ -170,6 +173,18 @@ class mol:
     self.kinetic = 0
     # seconds
     self.t = 0
+
+  def initJax(self):
+    self.calcPotential_v = jax.vmap(self.calcPotential, in_axes = (0, ))
+    self.gradient_v = jax.grad(self.calcPotential)
+    self.kineticAtom_v = jax.vmap(self.kineticAtom_np, in_axes = (0, 0))
+    self.distance_v = jax.vmap(self.distance_np, in_axes = (0, ))
+    self.angle_v = jax.vmap(self.angle_np, in_axes = (0, ))
+    self.cosTorsionalAngle_v = jax.vmap(self.cosTorsionalAngle_np, in_axes = (0, ))
+    self.accelAtom_v = jax.vmap(self.accelAtom_, in_axes = (0, 0))
+    self.posAtom_v = jax.vmap(self.posAtom_, in_axes = (0, 0))
+    self.velAtom_v = jax.vmap(self.velAtom_, in_axes = (0, 0))
+    self.updatePose_v = jax.vmap(self.updatePose, in_axes = (0, 0, 0, 0, 0))
 
   # calculates length AB given positions
 
@@ -206,9 +221,9 @@ class mol:
     r1 = P[0,:] - P[1,:]
     r2 = P[1,:] - P[2,:]
     r3 = P[3,:] - P[2,:]
-    cp_12 = np.cross(r1, r2)
-    cp_32 = np.cross(r3, r2)
-    cp = np.array([cp_12, np.zeros(3), cp_32])
+    cp_12 = nplib.cross(r1, r2)
+    cp_32 = nplib.cross(r3, r2)
+    cp = np.array([cp_12, nplib.zeros(cp_12.shape), cp_32])
     cosTorsionalAngle = self.cosAngle_(cp, nplib)
     return cosTorsionalAngle
 
@@ -217,38 +232,35 @@ class mol:
 
   # calculates potential energy of molecule given positions
 
+  def calcPotential_(self, P, nplib):
+    potential = 0
+
+    # if len(self.ccPairs) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[self.ccPairs], nplib))) * self.K_cc * self.kcal2J / self.N
+
+    # if len(self.chPairs) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[self.chPairs], nplib))) * self.K_ch * self.kcal2J / self.N
+
+    # if len(self.cccTriples) != 0:
+    #  potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
+
+    # if len(self.hchTriples) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[self.hchTriples], nplib))) * self.K_hch * self.kcal2J / self.N
+
+    # if len(self.cchTriples) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[self.cchTriples], nplib))) * self.K_cch * self.kcal2J / self.N
+
+    # if len(self.quads) != 0:
+    cosAngle = self.cosTorsionalAngle_(P[self.quads], nplib)
+    potential += 0.5 \
+      * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
+      * self.K_ccTorsional * self.kcal2J \
+      / self.N
+
+    return potential
+
   def calcPotential(self, P):
-    self.potential = 0
-
-    distance = jax.vmap(self.distance_np, in_axes = (0, ))
-
-    if len(self.ccPairs) != 0:
-      self.potential += 0.5 * np.sum(np.square(distance(P[self.ccPairs]))) * self.K_cc * self.kcal2J / self.N
-
-    if len(self.chPairs) != 0:
-      self.potential += 0.5 * np.sum(np.square(distance(P[self.chPairs]))) * self.K_ch * self.kcal2J / self.N
-
-    angle = jax.vmap(self.angle_np, in_axes = (0, ))
-
-    if len(self.cccTriples) != 0:
-      self.potential += 0.5 * np.sum(np.square(angle(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
-
-    if len(self.hchTriples) != 0:
-      self.potential += 0.5 * np.sum(np.square(angle(P[self.hchTriples]))) * self.K_hch * self.kcal2J / self.N
-
-    if len(self.cchTriples) != 0:
-      self.potential += 0.5 * np.sum(np.square(angle(P[self.cchTriples]))) * self.K_cch * self.kcal2J / self.N
-
-    cosTorsionalAngle = jax.vmap(self.cosTorsionalAngle_np, in_axes = (0, ))
-
-    if len(self.quads) != 0:
-      cosAngle = cosTorsionalAngle(P[self.quads])
-      self.potential += 0.5 \
-        * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
-        * self.K_ccTorsional * self.kcal2J \
-        / self.N
-
-    return self.potential
+    return self.calcPotential_(P, np)
 
   # calculates kinetic energy of single atom given mass and velocity
 
@@ -262,74 +274,105 @@ class mol:
   # calculates kinetic energy of molecule given masses and velocities
 
   def calcKinetic(self, M, V):
-    kineticAtom = jax.vmap(self.kineticAtom_np, in_axes = (0, 0))
-
-    self.kinetic = np.sum(kineticAtom(M, V))
+    self.kinetic = np.sum(self.kineticAtom_v(M, V))
 
     return self.kinetic
 
   # calculates force matrix
 
   def calcForce(self, P):
-    gradient_v = jax.grad(self.calcPotential)
-
-    self.forceMatrix = -1 * gradient_v(P) / self.A2m
+    self.forceMatrix = -1 * self.gradient_v(P) / self.A2m
 
     return self.forceMatrix
 
   # calculates acceleration matrix of single atom given mass and force
 
-  def accelAtom_(self, M, F, nplib):
-    return F / M / self.amu2kg / self.A2m 
-
-  def accelAtom_np(self, M, F):
-    return self.accelAtom_(M, F, np)
+  def accelAtom_(self, M, F):
+    return F / M / self.amu2kg / self.A2m
 
   # calculates acceleration matrix gives masses and forces
 
   def calcAccel(self, M, F):
-    accelAtom = jax.vmap(self.accelAtom_np, in_axes = (0, 0))
-
-    self.accelMatrix = accelAtom(M, F)
+    self.accelMatrix = self.accelAtom_v(M, F)
 
     return self.accelMatrix
 
+  # calculates position matrix of single atom given position and velocity
+
+  def posAtom_(self, P, V):
+    return P + V * self.dt
+
+  # calculates position matrix given positions and velocities
+
+  def calcPos(self, P, V):
+    self.posMatrix = self.posAtom_v(P, V)
+
+    return self.posMatrix
+
+  # calculates velocity matrix of single atom given velocity and acceleration
+
+  def velAtom_(self, V, A):
+    return V + A * self.dt
+
+  # calculates velocity matrix given velocities and accelerations
+
+  def calcVel(self, V, A):
+    self.velMatrix = self.velAtom_v(V, A)
+
+    return self.velMatrix
+
+  def updatePose(self, P, V, A, pA, dt):
+    dA = A - pA
+    P = P + V * dt + A * (dt * dt / 2) + dA * (dt * dt / 3)
+    V = V + A * dt + dA * (dt * dt / 2)
+    return (P, V)
+
+  def updatePos(self):
+    (self.posMatrix, self.velMatrix) = self.updatePose(
+      self.posMatrix,
+      self.velMatrix,
+      self.accelMatrix,
+      self.prevAccelMatrix,
+      self.dt)
+
+    self.prevAccelMatrix = self.accelMatrix
+
   def update(self):
-    self.calcPotential(self.posMatrix)
-    self.calcKinetic(self.massMatrix, self.velMatrix)
     self.calcForce(self.posMatrix)
     self.calcAccel(self.massMatrix, self.forceMatrix)
+    self.updatePos()
+    # self.calcVel(self.velMatrix, self.accelMatrix)
+    # self.calcPos(self.posMatrix, self.velMatrix)
 
-    self.posMatrix += self.dt * self.velMatrix
-    self.velMatrix += self.dt * self.accelMatrix
     self.t += self.dt
+  def print(self):
+    self.potential = self.calcPotential_v(self.posMatrix)
+    self.calcKinetic_v(self.massMatrix, self.velMatrix)
+    print("t:")
+    print(self.t)
+    print("potential:")
+    print(self.potential)
+    print("kinetic:")
+    print(self.kinetic)
+    print("total:")
+    print(self.potential + self.kinetic)
+    print()
+    print("posMatrix:")
+    print(self.posMatrix)
+    print("velMatrix:")
+    print(self.velMatrix)
+    print("accelMatrix")
+    print(self.accelMatrix)
+    print()
 
-    if int(round(self.t * 1e15)) % 20 == 0 or self.t == self.dt:
-      print("t:")
-      print(self.t)
-      print("potential:")
-      print(self.potential)
-      print("kinetic:")
-      print(self.kinetic)
-      print("total:")
-      print(self.potential + self.kinetic)
-      print()
-      print("posMatrix:")
-      print(self.posMatrix)
-      print("velMatrix:")
-      print(self.velMatrix)
-      print("accelMatrix")
-      print(self.accelMatrix)
-      print()
-    elif int(round(self.t * 1e15)) % 10 == 0:
-      print("t:")
-      print(self.t)
-      print()
-
-dt = 1e-15
+dt = 1e-17
 sim = mol(ethane, dt)
-for i in range(1000):
+start_time = time.clock()
+for i in range(50):
   sim.update()
+  # if i % 100 == 0:
+  #   sim.print()
+print("--- %s seconds ---" % (time.clock() - start_time))
 
 # class molV2:
 #   def __init__ (self, atoms):
