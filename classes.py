@@ -175,7 +175,7 @@ class mol:
     self.t = 0
 
   def initJax(self):
-    self.calcPotential_v = jax.vmap(self.calcPotential, in_axes = (0, ))
+    self.calcPotential_v = jax.vmap(self.calcPotential2, in_axes = (0, ))
     self.gradient_v = jax.grad(self.calcPotential)
     self.kineticAtom_v = jax.vmap(self.kineticAtom_np, in_axes = (0, 0))
     self.distance_v = jax.vmap(self.distance_np, in_axes = (0, ))
@@ -232,26 +232,56 @@ class mol:
 
   # calculates potential energy of molecule given positions
 
-  def calcPotential_(self, P, nplib):
+  def calcPotential_2(self, P, ccPairs, chPairs, hchTriples, cchTriples, quads, nplib):
     potential = 0
 
     # if len(self.ccPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[self.ccPairs], nplib))) * self.K_cc * self.kcal2J / self.N
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[ccPairs], nplib))) * self.K_cc * self.kcal2J / self.N
 
     # if len(self.chPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[self.chPairs], nplib))) * self.K_ch * self.kcal2J / self.N
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[chPairs], nplib))) * self.K_ch * self.kcal2J / self.N
 
     # if len(self.cccTriples) != 0:
     #  potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
 
     # if len(self.hchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[self.hchTriples], nplib))) * self.K_hch * self.kcal2J / self.N
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[hchTriples], nplib))) * self.K_hch * self.kcal2J / self.N
 
     # if len(self.cchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[self.cchTriples], nplib))) * self.K_cch * self.kcal2J / self.N
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[cchTriples], nplib))) * self.K_cch * self.kcal2J / self.N
 
     # if len(self.quads) != 0:
-    cosAngle = self.cosTorsionalAngle_(P[self.quads], nplib)
+    cosAngle = self.cosTorsionalAngle_(P[quads], nplib)
+    potential += 0.5 \
+      * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
+      * self.K_ccTorsional * self.kcal2J \
+      / self.N
+
+    return potential
+
+  def calcPotential2(self, P, ccPairs, chPairs, hchTriples, cchTriples, quads):
+    return self.calcPotential_2(P, ccPairs, chPairs, hchTriples, cchTriples, quads, np)
+
+  def calcPotential_(self, P, nplib):
+    potential = 0
+
+    # if len(self.ccPairs) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.ccPairs]))) * self.K_cc * self.kcal2J / self.N
+
+    # if len(self.chPairs) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.chPairs]))) * self.K_ch * self.kcal2J / self.N
+
+    # if len(self.cccTriples) != 0:
+    #  potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
+
+    # if len(self.hchTriples) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.hchTriples]))) * self.K_hch * self.kcal2J / self.N
+
+    # if len(self.cchTriples) != 0:
+    potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.cchTriples]))) * self.K_cch * self.kcal2J / self.N
+
+    # if len(self.quads) != 0:
+    cosAngle = self.cosTorsionalAngle_v(P[self.quads])
     potential += 0.5 \
       * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
       * self.K_ccTorsional * self.kcal2J \
@@ -346,8 +376,13 @@ class mol:
 
     self.t += self.dt
   def print(self):
-    self.potential = self.calcPotential_v(self.posMatrix)
-    self.calcKinetic_v(self.massMatrix, self.velMatrix)
+    self.potential = self.calcPotential_v(self.posMatrix,
+      self.ccPairs,
+      self.chPairs,
+      self.hchTriples,
+      self.cchTriples,
+      self.quads)
+    self.calcKinetic(self.massMatrix, self.velMatrix)
     print("t:")
     print(self.t)
     print("potential:")
@@ -370,8 +405,8 @@ sim = mol(ethane, dt)
 start_time = time.clock()
 for i in range(50):
   sim.update()
-  # if i % 100 == 0:
-  #   sim.print()
+  if i % 100 == 0:
+    sim.print()
 print("--- %s seconds ---" % (time.clock() - start_time))
 
 # class molV2:
