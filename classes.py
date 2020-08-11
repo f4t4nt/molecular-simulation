@@ -174,37 +174,53 @@ class mol:
     # seconds
     self.t = 0
 
+  def vmap(self, f, in_axes):
+    if vmap_funcs:
+      return jax.vmap(f, in_axes)
+
+    return f
+
+  def jit(self, f):
+    if jit_funcs:
+      return jax.jit(f)
+    else:
+      return f
+
+
   def initJax(self):
-    self.calcPotential_v = jax.vmap(self.calcPotential2, in_axes = (0, ))
-    self.gradient_v = jax.grad(self.calcPotential)
-    self.kineticAtom_v = jax.vmap(self.kineticAtom_np, in_axes = (0, 0))
-    self.distance_v = jax.vmap(self.distance_np, in_axes = (0, ))
-    self.angle_v = jax.vmap(self.angle_np, in_axes = (0, ))
-    self.cosTorsionalAngle_v = jax.vmap(self.cosTorsionalAngle_np, in_axes = (0, ))
-    self.accelAtom_v = jax.vmap(self.accelAtom_, in_axes = (0, 0))
-    self.posAtom_v = jax.vmap(self.posAtom_, in_axes = (0, 0))
-    self.velAtom_v = jax.vmap(self.velAtom_, in_axes = (0, 0))
-    self.updatePose_v = jax.vmap(self.updatePose, in_axes = (0, 0, 0, 0, 0))
+    self.calcPotential_v = self.jit(self.vmap(self.calcPotential2, in_axes = (0, )))
+    self.calcPotential_jit = self.jit(self.calcPotential)
+    self.gradient_v = self.jit(jax.grad(self.calcPotential))
+    self.kineticAtom_v = self.jit(self.vmap(self.kineticAtom_np, in_axes = (0, 0)))
+    self.distance_v = self.jit(self.vmap(self.distance_np, in_axes = (0, )))
+    self.angle_v = self.jit(self.vmap(self.angle_np, in_axes = (0, )))
+    self.cosTorsionalAngle_v = self.jit(self.vmap(self.cosTorsionalAngle_np, in_axes = (0, )))
+    self.accelAtom_v = self.jit(self.vmap(self.accelAtom_, in_axes = (0, 0)))
+    self.posAtom_v = self.jit(self.vmap(self.posAtom_, in_axes = (0, 0)))
+    self.velAtom_v = self.jit(self.vmap(self.velAtom_, in_axes = (0, 0)))
+    self.updatePose_v = self.jit(self.vmap(self.updatePose, in_axes = (0, 0, 0, 0, 0)))
 
   # calculates length AB given positions
 
   def distance_(self, P, nplib):
-    r = P[0,:] - P[1,:]
+    r = P[:,0] - P[:,1]
     r_mag = nplib.sqrt(nplib.sum(nplib.square(r)))
     return r_mag
 
   def distance_np(self, P):
     return self.distance_(P, np)
 
-  # calculates angle ABC given positions
+  # calculates cosine of angle ABC given positions
 
   def cosAngle_(self, P, nplib):
-    r1 = P[0,:] - P[1,:]
-    r2 = P[2,:] - P[1,:]
+    r1 = P[:,0] - P[:,1]
+    r2 = P[:,2] - P[:,1]
     dot = nplib.sum(nplib.multiply(r1, r2))
     r1_mag = nplib.sqrt(nplib.sum(nplib.square(r1)))
     r2_mag = nplib.sqrt(nplib.sum(nplib.square(r2)))
     return dot / (r1_mag * r2_mag)
+
+  # calculates angle ABC given positions
 
   def cosAngle_np(self, P):
     return self.cosAngle_(P, np)
@@ -265,27 +281,27 @@ class mol:
   def calcPotential_(self, P, nplib):
     potential = 0
 
-    # if len(self.ccPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.ccPairs]))) * self.K_cc * self.kcal2J / self.N
+    if len(self.ccPairs) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.ccPairs]))) * self.K_cc * self.kcal2J / self.N
 
-    # if len(self.chPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.chPairs]))) * self.K_ch * self.kcal2J / self.N
+    if len(self.chPairs) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.distance_v(P[self.chPairs]))) * self.K_ch * self.kcal2J / self.N
 
-    # if len(self.cccTriples) != 0:
-    #  potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
+    if len(self.cccTriples) != 0:
+      potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
 
-    # if len(self.hchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.hchTriples]))) * self.K_hch * self.kcal2J / self.N
+    if len(self.hchTriples) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.hchTriples]))) * self.K_hch * self.kcal2J / self.N
 
-    # if len(self.cchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.cchTriples]))) * self.K_cch * self.kcal2J / self.N
+    if len(self.cchTriples) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.angle_v(P[self.cchTriples]))) * self.K_cch * self.kcal2J / self.N
 
     # if len(self.quads) != 0:
-    cosAngle = self.cosTorsionalAngle_v(P[self.quads])
-    potential += 0.5 \
-      * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
-      * self.K_ccTorsional * self.kcal2J \
-      / self.N
+    #   cosAngle = self.cosTorsionalAngle_v(P[self.quads])
+    #   potential += 0.5 \
+    #     * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
+    #     * self.K_ccTorsional * self.kcal2J \
+    #     / self.N
 
     return potential
 
@@ -296,7 +312,7 @@ class mol:
 
   def kineticAtom_(self, M, V, nplib):
     v_mag = nplib.sqrt(nplib.sum(nplib.square(V)))
-    return 0.5 * M * v_mag ** 2 * self.amu2kg * self.A2m ** 2 
+    return 0.5 * M * v_mag ** 2 * self.amu2kg * self.A2m ** 2
 
   def kineticAtom_np(self, M, V):
     return self.kineticAtom_(M, V, np)
@@ -304,9 +320,7 @@ class mol:
   # calculates kinetic energy of molecule given masses and velocities
 
   def calcKinetic(self, M, V):
-    self.kinetic = np.sum(self.kineticAtom_v(M, V))
-
-    return self.kinetic
+    return np.sum(self.kineticAtom_v(M, V))
 
   # calculates force matrix
 
@@ -376,21 +390,22 @@ class mol:
 
     self.t += self.dt
   def print(self):
-    self.potential = self.calcPotential_v(self.posMatrix,
-      self.ccPairs,
-      self.chPairs,
-      self.hchTriples,
-      self.cchTriples,
-      self.quads)
-    self.calcKinetic(self.massMatrix, self.velMatrix)
+    self.potential = self.calcPotential_jit(self.posMatrix,
+      # self.ccPairs,
+      # self.chPairs,
+      # self.hchTriples,
+      # self.cchTriples,
+      # self.quads
+      )
+    kineticE = self.calcKinetic(self.massMatrix, self.velMatrix)
     print("t:")
     print(self.t)
     print("potential:")
     print(self.potential)
     print("kinetic:")
-    print(self.kinetic)
+    print(kineticE)
     print("total:")
-    print(self.potential + self.kinetic)
+    print(self.potential + kineticE)
     print()
     print("posMatrix:")
     print(self.posMatrix)
@@ -400,432 +415,19 @@ class mol:
     print(self.accelMatrix)
     print()
 
+jit_funcs = False
+vmap_funcs = True
 dt = 1e-17
 sim = mol(ethane, dt)
+sim.print()
+sim.update()
 start_time = time.clock()
-for i in range(50):
+for i in range(50000):
   sim.update()
-  if i % 100 == 0:
+  if i % 50 == 0:
     sim.print()
+    break
+
+  break
+
 print("--- %s seconds ---" % (time.clock() - start_time))
-
-# class molV2:
-#   def __init__ (self, atoms):
-#     self.atoms = atoms
-
-#     self.initAtomArrays()
-#     self.initPairs()
-#     self.initTriples()
-#     self.initQuads()
-#     self.initMatrices()
-
-#     # kcal/Å^2
-#     # kcal/rad^2
-
-#     self.K_cc = 573.8
-#     self.K_ch = 222.
-#     self.K_ccc = 53.58
-#     self.K_hch = 76.28
-#     self.K_cch = 44.
-#     self.K_ccTorsional = 2.836
-
-#     # atomic masses (amu)
-
-#     self.massC = 12.0107
-#     self.massH = 1.00784
-
-#     # ångström to meter
-#     # kcal to joules
-#     # amu to kg
-
-#     self.A2m = 10e-10
-#     self.kcal2J = 4184
-#     self.amu2kg = 1.660539e-27
-
-#   def initAtomArrays(self):
-#     self.atomArray = []
-#     self.atomMap = {}
-#     for i, (k, v) in enumerate(self.atoms.items()):
-#       self.atomArray.append((k, v))
-#       self.atomMap[k] = i
-
-#   def initPairs(self):
-#     self.pairs = []
-#     for i, (_, v) in enumerate(self.atoms.items()):
-#       for atom in v["Neighbors"]:
-#         j = self.atomMap[atom]
-#         if j < i:
-#           continue
-
-#         self.pairs.append(
-#           (i, j, v["Type"], self.atoms[atom]["Type"])
-#         )
-
-#     self.ccPairs = [(t[0], t[1]) for t in self.pairs if t[2] == atoms.C and t[3] == atoms.C]
-#     self.chPairs = [(t[0], t[1]) for t in self.pairs if (t[2] == atoms.H and t[3] == atoms.C) or (t[2] == atoms.C and t[3] == atoms.H)]
-
-#   def initTriples(self):
-#     self.triples = []
-#     for i, (k, v) in enumerate(self.atoms.items()):
-#       if v["Type"] != atoms.C:
-#         continue
-
-#       neighbors = v["Neighbors"]
-#       for j in range(len(neighbors)):
-#         for k in range(j + 1, len(neighbors)):
-#           self.triples.append(
-#             (self.atomMap[neighbors[j]], i, self.atomMap[neighbors[k]])
-#           )
-
-#     self.cccTriples = [t for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.C]
-#     self.hchTriples = [t for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.H]
-#     self.cchTriples = [t for t in self.triples if (self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.C) or (self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.H)]
-
-#   # only calculates _cc_ quads
-
-#   def initQuads(self):
-#     self.quads = []
-#     for pair in self.ccPairs:
-#       for left in self.atomArray[pair[0]][1]["Neighbors"]:
-#         if self.atomMap[left] == pair[1]:
-#           continue
-
-#         for right in self.atomArray[pair[1]][1]["Neighbors"]:
-#           if self.atomMap[right] == pair[0]:
-#             continue
-
-#           self.quads.append(
-#             (self.atomMap[left], pair[0], pair[1], self.atomMap[right])
-#           )
-
-#   def initMatrices(self):
-#     self.posList = [atom[1]["Position"] for atom in self.atomArray]
-
-#   # need to add empty matrix checks
-
-#   def calcPotential(self):
-#     self.potential = 0
-
-#     if len(self.ccPairs) != 0:
-#       self.ccBond0 = np.array([self.posList[i[0]] for i in self.ccPairs])
-#       print(self.ccBond0.shape)
-#       self.ccBond1 = np.array([self.posList[i[1]] for i in self.ccPairs])
-#       self.ccBond0_1 = self.ccBond0 - self.ccBond1
-#       self.ccBondLengthSquare = np.sum(np.square(self.ccBond0_1))
-
-#     if len(self.chPairs) != 0:
-#       self.chBond0 = [self.posList[i[0]] for i in self.chPairs]
-#       self.chBond1 = [self.posList[i[1]] for i in self.chPairs]
-#       self.chBond0_1 = np.subtract(self.chBond0, self.chBond1)
-#       self.chBondLengthSquare = np.sum(np.square(self.chBond0_1), axis = 1)
-
-#     if len(self.cccTriples) != 0:
-#       self.cccBondAngle0 = [self.posList[i[0]] for i in self.cccTriples]
-#       self.cccBondAngle1 = [self.posList[i[1]] for i in self.cccTriples]
-#       self.cccBondAngle2 = [self.posList[i[2]] for i in self.cccTriples]
-#       self.cccBondAngle0_1 = np.subtract(self.cccBondAngle0, self.cccBondAngle1)
-#       self.cccBondAngle2_1 = np.subtract(self.cccBondAngle2, self.cccBondAngle1)
-#       self.cccBondAngleDotProd = np.sum(np.multiply(self.cccBondAngle0_1, self.cccBondAngle2_1), axis = 1)
-#       self.cccBondAngle0_1Mag = np.sum(np.square(self.cccBondAngle0_1), axis = 1)
-#       self.cccBondAngle2_1Mag = np.sum(np.square(self.cccBondAngle2_1), axis = 1)
-#       self.cccBondAngleMagProd = np.sum(np.multiply(self.cccBondAngle0_1Mag, self.cccBondAngle2_1Mag), axis = 1)
-#       self.cccBondAngle = np.arccos(self.cccBondAngleDotProd / self.cccBondAngleMagProd)
-
-#     if len(self.hchTriples) != 0:
-#       self.hchBondAngle0 = [self.posList[i[0]] for i in self.hchTriples]
-#       self.hchBondAngle1 = [self.posList[i[1]] for i in self.hchTriples]
-#       self.hchBondAngle2 = [self.posList[i[2]] for i in self.hchTriples]
-#       self.hchBondAngle0_1 = np.subtract(self.hchBondAngle0, self.hchBondAngle1)
-#       self.hchBondAngle2_1 = np.subtract(self.hchBondAngle2, self.hchBondAngle1)
-#       self.hchBondAngleDotProd = np.sum(np.multiply(self.hchBondAngle0_1, self.hchBondAngle2_1), axis = 1)
-#       self.hchBondAngle0_1Mag = np.sum(np.square(self.hchBondAngle0_1), axis = 1)
-#       self.hchBondAngle2_1Mag = np.sum(np.square(self.hchBondAngle2_1), axis = 1)
-#       self.hchBondAngleMagProd = np.sum(np.multiply(self.hchBondAngle0_1Mag, self.hchBondAngle2_1Mag), axis = 1)
-#       self.hchBondAngle = np.arccos(self.hchBondAngleDotProd / self.hchBondAngleMagProd)
-
-#     if len(self.cchTriples) != 0:
-#       self.cchBondAngle0 = [self.posList[i[0]] for i in self.cchTriples]
-#       self.cchBondAngle1 = [self.posList[i[1]] for i in self.cchTriples]
-#       self.cchBondAngle2 = [self.posList[i[2]] for i in self.cchTriples]
-#       self.cchBondAngle0_1 = np.subtract(self.cchBondAngle0, self.cchBondAngle1)
-#       self.cchBondAngle2_1 = np.subtract(self.cchBondAngle2, self.cchBondAngle1)
-#       self.cchBondAngleDotProd = np.sum(np.multiply(self.cchBondAngle0_1, self.cchBondAngle2_1), axis = 1)
-#       self.cchBondAngle0_1Mag = np.sum(np.square(self.cchBondAngle0_1), axis = 1)
-#       self.cchBondAngle2_1Mag = np.sum(np.square(self.cchBondAngle2_1), axis = 1)
-#       self.cchBondAngleMagProd = np.sum(np.multiply(self.cchBondAngle0_1Mag, self.cchBondAngle2_1Mag), axis = 1)
-#       self.cchBondAngle = np.arccos(self.cchBondAngleDotProd / self.cchBondAngleMagProd)
-
-#     print()
-
-#   def update(self):
-#     print(self.calcPotential())
-      
-# dt = 1e-12
-# sim = molV2(ethane)
-
-# sim.calcPotential()
-
-# class molDyn:
-#   def __init__(self, dt, atoms, pos0, v0, bonds):
-#     self.dt = dt
-#     self.time = 0
-#     self.v = v0
-#  #    self.pos = pos0
-#      self.F = np.zeros((atoms.shape[0], 3))
-
-# #     self.atoms = atoms
-# #     self.bonds = bonds
-#     self.potentialEnergy = 0
-#     self.kineticEnergy = 0
-
-#     self.ccPairs = []
-#     self.chPairs = []
-#     self.cccTriples = []
-#     self.hchTriples = []
-#     self.cchTriples = []
-    
-#     self.calcPairs()
-#     self.calcTriples()
-
-#     self.ccDistances = np.zeros((len(self.ccPairs), 3))
-#     self.chDistances = np.zeros((len(self.chPairs), 3))
-#     self.cccBondAngles = np.zeros((len(self.cccTriples), 1))
-#     self.hchBondAngles = np.zeros((len(self.hchTriples), 1))
-#     self.cchBondAngles = np.zeros((len(self.cchTriples), 1))
-
-#     self.calcNumCcTorsionalAngles()
-
-#     self.ccTorsionalAngles = np.zeros((self.numCcTorsionalAngles, 1))
-
-#     # kcal/Å^2
-#     # kcal/rad^2
-
-#     self.K_cc = 573.8
-#     self.K_ch = 222.
-#     self.K_ccc = 53.58
-#     self.K_hch = 76.28
-#     self.K_cch = 44.
-#     self.K_ccTorsional = 2.836
-
-#     # atomic masses (amu)
-
-#     self.massC = 12.0107
-#     self.massH = 1.00784
-
-#     # ångström to meter
-#     # kcal to joules
-#     # amu to kg
-
-#     self.A2m = 10e-10
-#     self.kcal2J = 4184
-#     self.amu2kg = 1.660539e-27
-
-#   def calcPairs(self):
-#     for i in range(len(self.bonds)):
-#       for j in range(len(self.bonds[i])):
-#         if i < self.bonds[i][j]:
-#           if self.atoms[i] and self.atoms[self.bonds[i][j]]:
-#             self.ccPairs.append([i, self.bonds[i][j]])
-#           if self.atoms[i] ^ self.atoms[self.bonds[i][j]]:
-#             self.chPairs.append([i, self.bonds[i][j]])
-
-#   def calcTriples(self):
-#     for i in range(len(self.bonds)):
-#       if self.atoms[i]:
-#         for j in range(len(self.bonds[i])):
-#           for k in range(j + 1, len(self.bonds[i])):
-#             if self.atoms[self.bonds[i][j]] and self.atoms[self.bonds[i][k]]:
-#               self.cccTriples.append([i, self.bonds[i][j], self.bonds[i][k]])
-#             elif not(self.atoms[self.bonds[i][j]] or self.atoms[self.bonds[i][k]]):
-#               self.hchTriples.append([i, self.bonds[i][j], self.bonds[i][k]])
-#             elif self.atoms[self.bonds[i][j]] ^ self.atoms[self.bonds[i][k]]:
-#               self.cchTriples.append([i, self.bonds[i][j], self.bonds[i][k]])
-
-#   def calcNumCcTorsionalAngles(self):
-#     self.numCcTorsionalAngles = 0
-#     for i in range(len(self.ccPairs)):
-#       self.numCcTorsionalAngles += (len(self.bonds[self.ccPairs[i][0]]) - 1) * (len(self.bonds[self.ccPairs[i][1]]) - 1)
-#     return self.numCcTorsionalAngles
-
-# #  def getVectorMagnitude(self, v):
-# #    return np.sqrt(
-# #        v[0] * v[0] +
-# #        v[1] * v[1] +
-# #        v[2] * v[2])
-
-# #  def getVectorDotProduct(self, v1, v2):
-# #    return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
-
-# #  def getVectorCrossProduct(self, v1, v2):
-# #    return np.array([
-# #        [v1[1] * v2[2] - v1[2] * v2[1]],
-# #        [v1[2] * v2[0] - v1[0] * v2[2]],
-# #        [v1[0] * v2[1] - v1[1] * v2[0]]])
-
-#   # rad
-
-#   def getVectorAngle(self, v1, v2):
-#     return np.arccos(np.dot(v1, v2.transpose()) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-
-#   # rad
-
-#   def getVectorTorsionalAngle(self, v1, v2, v3):
-#     return self.getVectorAngle(np.cross(v1, v2), np.cross(v1, v3))
-
-#   # Å
-
-#   def calcCcDistances(self):
-#     for i in range(len(self.ccPairs)):
-#       self.ccDistances[i] = self.pos[self.ccPairs[i][0]] - self.pos[self.ccPairs[i][1]]
-
-#   # Å
-
-#   def calcChDistances(self):
-#     for i in range(len(self.chPairs)):
-#       self.chDistances[i] = self.pos[self.chPairs[i][0]] - self.pos[self.chPairs[i][1]]
-
-#   # rad
-
-#   def calcCccAngles(self):
-#     for i in range(len(self.cccTriples)):
-#       self.cccBondAngles[i] = self.getVectorAngle(
-#         self.pos[self.cccTriples[i][1]] - self.pos[self.cccTriples[i][0]],
-#         self.pos[self.cccTriples[i][2]] - self.pos[self.cccTriples[i][0]])
-
-#   # rad
-
-#   def calcHchAngles(self):
-#     for i in range(len(self.hchTriples)):
-#       self.hchBondAngles[i] = self.getVectorAngle(
-#         self.pos[self.hchTriples[i][1]] - self.pos[self.hchTriples[i][0]],
-#         self.pos[self.hchTriples[i][2]] - self.pos[self.hchTriples[i][0]])
-
-#   # rad
-
-#   def calcCchAngles(self):
-#     for i in range(len(self.cchTriples)):
-#       self.cchBondAngles[i] = self.getVectorAngle(
-#         self.pos[self.cchTriples[i][1]] - self.pos[self.cchTriples[i][0]],
-#         self.pos[self.cchTriples[i][2]] - self.pos[self.cchTriples[i][0]])
-
-#   # rad
-
-#   def calcCcTorsionalAngles(self):
-#     x = 0
-#     for i in range(len(self.ccPairs)):
-#       for j in range(len(self.bonds[self.ccPairs[i][0]])):
-#         if not self.bonds[self.ccPairs[i][0]][j] == self.ccPairs[i][1]:
-#           for k in range(len(self.bonds[self.ccPairs[i][1]])):
-#             if not self.bonds[self.ccPairs[i][1]][k] == self.ccPairs[i][0]:
-#               self.ccTorsionalAngles[x] = self.getVectorTorsionalAngle(
-#                 self.pos[self.ccPairs[i][0]] - self.pos[self.ccPairs[i][1]],
-#                 self.pos[self.bonds[self.ccPairs[i][0]][j]] - self.pos[self.ccPairs[i][0]],
-#                 self.pos[self.bonds[self.ccPairs[i][1]][k]] - self.pos[self.ccPairs[i][1]])
-#               x += 1
-
-#   # J
-
-#   def calcPotential(self):
-#     self.calcCcDistances()
-#     self.calcChDistances()
-#     self.calcCccAngles()
-#     self.calcHchAngles()
-#     self.calcCchAngles()
-#     self.calcCcTorsionalAngles()
-
-#     self.potentialEnergy = 0
-
-#     for i in range(len(self.ccDistances)):
-#       self.potentialEnergy += 0.5 * self.K_cc * np.square(np.linalg.norm(self.ccDistances[i])) * self.A2m ** 2 * self.kcal2J
-
-#     for i in range(len(self.chDistances)):
-#       self.potentialEnergy += 0.5 * self.K_ch * np.square(np.linalg.norm(self.chDistances[i])) * self.A2m ** 2 * self.kcal2J
-
-#     for i in range(len(self.cccBondAngles)):
-#       self.potentialEnergy += 0.5 * self.K_ccc * np.square(self.cccBondAngles[i][0]) * self.kcal2J
-
-#     for i in range(len(self.hchBondAngles)):
-#       self.potentialEnergy += 0.5 * self.K_hch * np.square(self.hchBondAngles[i][0]) * self.kcal2J
-
-#     for i in range(len(self.cchBondAngles)):
-#       self.potentialEnergy += 0.5 * self.K_cch * np.square(self.cchBondAngles[i][0]) * self.kcal2J
-
-#     for i in range(len(self.ccTorsionalAngles)):
-#       self.potentialEnergy += 0.5 * self.K_ccTorsional * (1 + np.cos(3 * self.ccTorsionalAngles[i][0])) * self.kcal2J
-    
-#     return self.potentialEnergy
-
-#   # J
-
-#   def calcKinetic(self):
-#     self.kineticEnergy = 0
-
-#     for i in range(self.v.shape[0]):
-#       self.kineticEnergy += 0.5 * np.linalg.norm(self.v[i]) * self.A2m ** 2
-  
-#   # N
-
-#   def calcForceManual(self):
-#     originalPE = self.potentialEnergy
-
-#     if not originalPE == 0:
-#       for i in range(len(self.F)):
-#         h = 1e-12
-#         for j in range(3):
-#           self.pos[i, j] += h
-#           self.F[i, j] = (originalPE - self.calcPotential()) / h
-#           self.pos[i, j] -= h
-
-#   def update(self):
-#     self.calcForceManual()
-
-#     self.pos += self.v * self.dt
-#     self.v += self.F * self.dt
-
-#     self.calcPotential()
-#     self.calcKinetic()
-
-#     print(self.pos)
-#     print(self.v)
-#     print(self.F)
-#     print(-self.potentialEnergy)
-#     print(self.kineticEnergy)
-#     print(self.kineticEnergy - self.potentialEnergy)
-#     print()
-
-# sim = molDyn(
-#   dt,
-#   np.array([atoms.C, atoms.C, atoms.H, atoms.H, atoms.H, atoms.H, atoms.H, atoms.H]),
-#   np.array([
-#       [0., 0., 0.],
-#       [2., 0., 0.],
-#       [0., -1., 0.],
-#       [-1., 1., 2.],
-#       [-1., 1., -1.],
-#       [2., 1., 0.],
-#       [3., 1., 1.],
-#       [3., 0., -1.]
-#     ]),
-#   np.array([
-#       [0., 0., 0.],
-#       [2., 0., 0.],
-#       [0., -1., 0.],
-#       [-1., 1., 2.],
-#       [-1., 1., -1.],
-#       [2., 1., 0.],
-#       [3., 1., 1.],
-#       [3., 0., -1.]
-#     ]),
-#   [
-#       [1, 2, 3, 4],
-#       [0, 5, 6, 7],
-#       [0],
-#       [0],
-#       [0],
-#       [1],
-#       [1],
-#       [1]
-#     ])
-
-# for i in range(1000):
-#   sim.update()
