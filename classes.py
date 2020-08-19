@@ -158,6 +158,14 @@ class mol:
   def initMatrices(self):
     # angstroms
     self.posMatrix = np.array([(atom[1]["Position"]) for atom in self.atomArray])
+    # self.posMatrix = np.array([[ 0., 0., 0. ],
+    #   [ 1.6982005, 0.17761631, 0.02418225],
+    #   [-0.54968464, -0.0835496, -1.7867701 ],
+    #   [-0.13722242, 1.148577, 0.8286429 ],
+    #   [-0.7728126, -1.4011788, 0.8939908 ],
+    #   [ 2.011011, 0.49305442, 1.8159293 ],
+    #   [ 2.218594, 1.8368096, -0.8754015 ],
+    #   [ 1.6481868, -0.7784976, -0.80968946]])
     # angstroms/second
     self.velMatrix = np.zeros((len(self.atomArray), 3))
     # angstroms/second^2
@@ -186,7 +194,6 @@ class mol:
     else:
       return f
 
-
   def initJax(self):
     self.calcPotential_v = self.jit(self.vmap(self.calcPotential2, in_axes = (0, )))
     self.calcPotential_jit = self.jit(self.calcPotential)
@@ -198,7 +205,7 @@ class mol:
     self.accelAtom_v = self.jit(self.vmap(self.accelAtom_, in_axes = (0, 0)))
     self.posAtom_v = self.jit(self.vmap(self.posAtom_, in_axes = (0, 0)))
     self.velAtom_v = self.jit(self.vmap(self.velAtom_, in_axes = (0, 0)))
-    self.updatePose_v = self.jit(self.vmap(self.updatePose, in_axes = (0, 0, 0, 0, 0)))
+    self.updatePosition_v = self.jit(self.vmap(self.updatePosition, in_axes = (0, 0, 0, 0, 0)))
 
   # calculates length AB given positions
 
@@ -251,27 +258,27 @@ class mol:
   def calcPotential_2(self, P, ccPairs, chPairs, hchTriples, cchTriples, quads, nplib):
     potential = 0
 
-    # if len(self.ccPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[ccPairs], nplib))) * self.K_cc * self.kcal2J / self.N
+    if len(self.ccPairs) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[ccPairs], nplib))) * self.K_cc * self.kcal2J / self.N
 
-    # if len(self.chPairs) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[chPairs], nplib))) * self.K_ch * self.kcal2J / self.N
+    if len(self.chPairs) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.distance_(P[chPairs], nplib))) * self.K_ch * self.kcal2J / self.N
 
-    # if len(self.cccTriples) != 0:
-    #  potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
+    if len(self.cccTriples) != 0:
+      potential += 0.5 * np.sum(np.square(self.angle_v(P[self.cccTriples]))) * self.K_ccc * self.kcal2J / self.N
 
-    # if len(self.hchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[hchTriples], nplib))) * self.K_hch * self.kcal2J / self.N
+    if len(self.hchTriples) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[hchTriples], nplib))) * self.K_hch * self.kcal2J / self.N
 
-    # if len(self.cchTriples) != 0:
-    potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[cchTriples], nplib))) * self.K_cch * self.kcal2J / self.N
+    if len(self.cchTriples) != 0:
+      potential += 0.5 * nplib.sum(nplib.square(self.angle_(P[cchTriples], nplib))) * self.K_cch * self.kcal2J / self.N
 
-    # if len(self.quads) != 0:
-    cosAngle = self.cosTorsionalAngle_(P[quads], nplib)
-    potential += 0.5 \
-      * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
-      * self.K_ccTorsional * self.kcal2J \
-      / self.N
+    if len(self.quads) != 0:
+      cosAngle = self.cosTorsionalAngle_(P[quads], nplib)
+      potential += 0.5 \
+        * np.sum(1 + 4 * np.power(cosAngle, 3) - 3 * cosAngle ) \
+        * self.K_ccTorsional * self.kcal2J \
+        / self.N
 
     return potential
 
@@ -365,14 +372,14 @@ class mol:
 
     return self.velMatrix
 
-  def updatePose(self, P, V, A, pA, dt):
+  def updatePosition(self, P, V, A, pA, dt):
     dA = A - pA
     P = P + V * dt + A * (dt * dt / 2) + dA * (dt * dt / 3)
     V = V + A * dt + dA * (dt * dt / 2)
     return (P, V)
 
   def updatePos(self):
-    (self.posMatrix, self.velMatrix) = self.updatePose(
+    (self.posMatrix, self.velMatrix) = self.updatePosition(
       self.posMatrix,
       self.velMatrix,
       self.accelMatrix,
@@ -422,12 +429,9 @@ sim = mol(ethane, dt)
 sim.print()
 sim.update()
 start_time = time.clock()
-for i in range(50000):
+for i in range(1000):
   sim.update()
-  if i % 50 == 0:
+  if i % 100 == 0:
     sim.print()
-    break
 
-  break
-
-print("--- %s seconds ---" % (time.clock() - start_time))
+print("--- %s seconds ---" % (time.clock() - start_time)) 
