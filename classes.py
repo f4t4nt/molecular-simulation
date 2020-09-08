@@ -1,4 +1,5 @@
 from collections import namedtuple
+import csv
 from enum import Enum
 import jax as jax
 import jax.numpy as np
@@ -53,6 +54,10 @@ ethane = {
       "Position" : np.array([2.52, -1.56, -0.90])
     }
   }
+
+totalTicks = 100_000
+energyHistoryArr = [[]] * (totalTicks + 1)
+positionHistoryArr = [[]] * (totalTicks + 1) * len(ethane)
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -206,10 +211,10 @@ class mol:
     self.massMatrix = np.array([atom[1]["Type"].value for atom in self.atomArray])
     # joules
     self.potential = 0
-    # joules
-    self.kinetic = 0
     # seconds
     self.t = 0
+    # tick index
+    self.currTick = 0
 
   def vmap(self, f, in_axes):
     if vmap_funcs:
@@ -407,6 +412,15 @@ class mol:
 
     self.t += self.dt
 
+    self.potential = self.calcPotential_j(self.posMatrix)
+    kineticE = self.calcKinetic(self.velMatrix)
+    energyHistoryArr[self.currTick] = [self.t, self.potential, kineticE]
+    
+    for i in range(len(self.atomArray)):
+      positionHistoryArr[self.currTick * len(self.atomArray) + i] = [self.t, i, self.posMatrix[i, 0], self.posMatrix[i, 1], self.posMatrix[i, 2]]
+
+    self.currTick += 1
+
   def print(self):
     self.potential = self.calcPotential_j(self.posMatrix)
     kineticE = self.calcKinetic(self.velMatrix)
@@ -435,10 +449,20 @@ sim = mol(ethane, dt)
 sim.print()
 sim.update()
 start_time = time.perf_counter()
-for i in range(10_000):
+for i in range(totalTicks):
   sim.update()
-  if i % 10000 == 0:
+  if i % (totalTicks / 10) == 0:
     sim.print()
 
 sim.print()
 print("--- %s seconds ---" % (time.perf_counter() - start_time))
+
+with open('energyHistory.csv', mode='w') as energyHistory:
+  energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  for i in range(len(energyHistoryArr)):
+    energyWriter.writerow([energyHistoryArr[i][0], energyHistoryArr[i][1], energyHistoryArr[i][2]])
+
+with open('positionHistory.csv', mode='w') as posHistory:
+  posWriter = csv.writer(posHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  for i in range(len(positionHistoryArr)):
+    posWriter.writerow([positionHistoryArr[i][0], positionHistoryArr[i][1], positionHistoryArr[i][2], positionHistoryArr[i][3]])
