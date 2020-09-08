@@ -55,7 +55,9 @@ ethane = {
     }
   }
 
-totalTicks = 100_000
+totalTicks = 1_000_000
+energy = False
+position = True
 energyHistoryArr = [[]] * (totalTicks + 1)
 positionHistoryArr = [[]] * (totalTicks + 1) * len(ethane)
 
@@ -412,12 +414,14 @@ class mol:
 
     self.t += self.dt
 
-    self.potential = self.calcPotential_j(self.posMatrix)
-    kineticE = self.calcKinetic(self.velMatrix)
-    energyHistoryArr[self.currTick] = [self.t, self.potential, kineticE]
+    if energy:
+      self.potential = self.calcPotential_j(self.posMatrix)
+      kineticE = self.calcKinetic(self.velMatrix)
+      energyHistoryArr[self.currTick] = [self.t, self.potential, kineticE]
     
-    for i in range(len(self.atomArray)):
-      positionHistoryArr[self.currTick * len(self.atomArray) + i] = [self.t, i, self.posMatrix[i, 0], self.posMatrix[i, 1], self.posMatrix[i, 2]]
+    if position:
+      for i in range(len(self.atomArray)):
+        positionHistoryArr[self.currTick * len(self.atomArray) + i] = [self.t, i, self.posMatrix[i, 0], self.posMatrix[i, 1], self.posMatrix[i, 2]]
 
     self.currTick += 1
 
@@ -451,18 +455,20 @@ sim.update()
 start_time = time.perf_counter()
 for i in range(totalTicks):
   sim.update()
-  if i % (totalTicks / 10) == 0:
+  if i % (totalTicks / 100) == 0:
     sim.print()
 
 sim.print()
 print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
-with open('energyHistory.csv', mode='w') as energyHistory:
-  energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  for i in range(len(energyHistoryArr)):
-    energyWriter.writerow([energyHistoryArr[i][0], energyHistoryArr[i][1], energyHistoryArr[i][2]])
+if energy:
+  with open('energyHistory.csv', mode='w') as energyHistory:
+    energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    for i in range(len(energyHistoryArr)):
+      energyWriter.writerow([energyHistoryArr[i][0], energyHistoryArr[i][1], energyHistoryArr[i][2]])
 
-with open('positionHistory.csv', mode='w') as posHistory:
-  posWriter = csv.writer(posHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  for i in range(len(positionHistoryArr)):
-    posWriter.writerow([positionHistoryArr[i][0], positionHistoryArr[i][1], positionHistoryArr[i][2], positionHistoryArr[i][3]])
+if position:
+  with open('positionHistory.csv', mode='w') as posHistory:
+    posWriter = csv.writer(posHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    for i in range(len(positionHistoryArr)):
+      posWriter.writerow([positionHistoryArr[i][0], positionHistoryArr[i][1], positionHistoryArr[i][2], positionHistoryArr[i][3], positionHistoryArr[i][4]])
