@@ -12,54 +12,72 @@ class atoms(Enum):
   C = 12.0107
   H = 1.00784
 
+# coordinates retrieved from https://cccbdb.nist.gov
+
 ethane = {
     "C0" : {
       "Type" : atoms.C,
-      "Neighbors" : ["C1", "H0", "H1", "H2"],
-      "Position" : np.array([0.00, 0.00, 0.00])
+      "Neighbors" : ["C1","H0","H1","H2"],
+      "Position" : np.array([0.00, 0.00, 0.7680])
     },
     "C1" : {
       "Type" : atoms.C,
-      "Neighbors" : ["C0", "H3", "H4", "H5"],
-      "Position" : np.array([1.90, 0.00, 0.00])
+      "Neighbors" : ["C0","H3","H4","H5"],
+      "Position" : np.array([0.00, 0.00, -0.7680])
     },
     "H0" : {
       "Type" : atoms.H,
       "Neighbors" : ["C0"],
-      "Position" : np.array([-0.62, 0.00, -1.80])
+      "Position" : np.array([-1.0192, 0.00, 1.1573])
     },
     "H1" : {
       "Type" : atoms.H,
       "Neighbors" : ["C0"],
-      "Position" : np.array([-0.62, 1.56, 0.90])
+      "Position" : np.array([0.5096, 0.8826, 1.1573])
     },
     "H2" : {
       "Type" : atoms.H,
       "Neighbors" : ["C0"],
-      "Position" : np.array([-0.62, -1.56, 0.90])
+      "Position" : np.array([0.5096, -0.8826, 1.1573])
     },
     "H3" : {
       "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([2.52, 0.00, 1.80])
+      "Neighbors" : ["C1"],
+      "Position" : np.array([1.0192, 0.00, -1.1573])
     },
     "H4" : {
       "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([2.52, 1.56, -0.90])
+      "Neighbors" : ["C1"],
+      "Position" : np.array([-0.5096, -0.8826, -1.1573])
     },
     "H5" : {
       "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([2.52, -1.56, -0.90])
+      "Neighbors" : ["C1"],
+      "Position" : np.array([-0.5096, 0.8826, -1.1573])
     }
   }
 
-totalTicks = 1_000_000
-energy = False
+# total # of update calls
+
+totalTicks = 10_000
+molecule = ethane
+
+# are we using jit/vmap?
+
+jit_funcs = True
+vmap_funcs = True
+
+# timestep, how often are we recording?
+
+dt = 1e-16
+scale = 2
+
+# are we recording energy/position?
+
+energy = True
 position = True
-energyHistoryArr = [[]] * (totalTicks + 1)
-positionHistoryArr = [[]] * (totalTicks + 1) * len(ethane)
+energyHistoryArr = [[]] * int((totalTicks / scale) + 1)
+positionHistoryArr = [[]] * int(((totalTicks / scale) + 1) * len(molecule))
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -75,6 +93,15 @@ class mol:
     self.K_hch = 76.28
     self.K_cch = 44.
     self.K_ccTorsional = 2.836
+
+    # Å
+    # rad
+
+    self.X_cc = 1.455
+    self.X_ch = 1.099
+    self.X_ccc = 1.937
+    self.X_hch = 1.911
+    self.X_cch = 1.911
 
     # Avogadro's number
 
@@ -142,6 +169,7 @@ class mol:
       np.full((1, len(self.ccPairs)), self.distEnergyK_cc),
       np.full((1, len(self.chPairs)), self.distEnergyK_ch)),
       axis = 1)
+      
   # creates array of CCC, HCH, CCH triples
 
   def initTriples(self):
@@ -217,6 +245,15 @@ class mol:
     self.t = 0
     # tick index
     self.currTick = 0
+    
+    self.M_cc = np.zeros((len(self.ccPairs), 1)) + self.X_cc
+    self.M_ch = np.zeros((len(self.chPairs), 1)) + self.X_ch
+    self.M_ccc = np.zeros((len(self.cccTriples), 1)) + self.X_ccc
+    self.M_hch = np.zeros((len(self.hchTriples), 1)) + self.X_hch
+    self.M_cch = np.zeros((len(self.cchTriples), 1)) + self.X_cch
+
+    self.M_pairs = np.concatenate((self.M_cc, self.M_ch), axis = 0)
+    self.M_triples = np.concatenate((self.M_ccc, self.M_hch, self.M_cch), axis = 0)
 
   def vmap(self, f, in_axes):
     if vmap_funcs:
@@ -307,6 +344,8 @@ class mol:
     quads = self.quads
     angleEnergyK_ccTorsional = self.angleEnergyK_ccTorsional
     distance_v = self.distance_v
+    M_pairs = self.M_pairs
+    M_triples = self.M_triples
 
     if use_v:
       angle_v = self.angle_v
@@ -318,12 +357,12 @@ class mol:
     def calcPotential_(pos):
       potential_0 = 0.5 * np.sum(
         np.multiply(
-          np.square(distance_v(pos[atomPairs])),
+          np.square(distance_v(pos[atomPairs]) - M_pairs),
           pairEnergyConstants))
 
       potential_0 += 0.5 * np.sum(
         np.multiply(
-          np.square(angle_v(pos[atomTriples])),
+          np.square(angle_v(pos[atomTriples]) - M_triples),
           triplesAngleEneryConstants))
 
       cosAngle = cosTorsionalAngle_v(pos[quads])
@@ -414,6 +453,30 @@ class mol:
 
     self.t += self.dt
 
+  def print(self):
+    # self.potential = self.calcPotential_j(self.posMatrix)
+    # kineticE = self.calcKinetic(self.velMatrix)
+    # print("t:")
+    # print(self.t)
+    # print("potential:")
+    # print(self.potential)
+    # print("kinetic:")
+    # print(kineticE)
+    # print("total:")
+    # print(self.potential + kineticE)
+    # print()
+    # print("posMatrix:")
+    # print(self.posMatrix)
+    # print("velMatrix:")
+    # print(self.velMatrix)
+    # print("accelMatrix")
+    # print(self.accelMatrix)
+
+    # print()
+
+    print(str(int(100 * self.currTick/(totalTicks / scale))) + "%")
+
+  def record(self):
     if energy:
       self.potential = self.calcPotential_j(self.posMatrix)
       kineticE = self.calcKinetic(self.velMatrix)
@@ -425,40 +488,19 @@ class mol:
 
     self.currTick += 1
 
-  def print(self):
-    self.potential = self.calcPotential_j(self.posMatrix)
-    kineticE = self.calcKinetic(self.velMatrix)
-    print("t:")
-    print(self.t)
-    print("potential:")
-    print(self.potential)
-    print("kinetic:")
-    print(kineticE)
-    print("total:")
-    print(self.potential + kineticE)
-    print()
-    print("posMatrix:")
-    print(self.posMatrix)
-    print("velMatrix:")
-    print(self.velMatrix)
-    print("accelMatrix")
-    print(self.accelMatrix)
-    print()
+print("--- 0 seconds ---")
 
-print("program start")
-jit_funcs = True
-vmap_funcs = True
-dt = 1e-16
-sim = mol(ethane, dt)
-sim.print()
-sim.update()
+sim = mol(molecule, dt)
+
 start_time = time.perf_counter()
-for i in range(totalTicks):
+
+for i in range(totalTicks + 1):
   sim.update()
-  if i % (totalTicks / 100) == 0:
+  if i % scale == 0:
+    sim.record()
+  if i % int(totalTicks / 10) == int(totalTicks / 10) - 1:
     sim.print()
 
-sim.print()
 print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
 if energy:
@@ -470,5 +512,9 @@ if energy:
 if position:
   with open('positionHistory.csv', mode='w') as posHistory:
     posWriter = csv.writer(posHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    posWriter.writerow([len(molecule)])
+    posWriter.writerow([scale])
+    for i, (k, v) in enumerate(molecule.items()):
+      posWriter.writerow([v['Type']])
     for i in range(len(positionHistoryArr)):
       posWriter.writerow([positionHistoryArr[i][0], positionHistoryArr[i][1], positionHistoryArr[i][2], positionHistoryArr[i][3], positionHistoryArr[i][4]])
