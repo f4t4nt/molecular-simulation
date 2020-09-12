@@ -3,6 +3,7 @@ import csv
 from enum import Enum
 import jax as jax
 import jax.numpy as np
+import matplotlib.pyplot as plt
 import numpy as onp
 import pickle as pl
 import time as time
@@ -57,6 +58,8 @@ ethane = {
     }
   }
 
+
+
 # total # of update calls
 
 totalTicks = 10_000
@@ -69,15 +72,17 @@ vmap_funcs = True
 
 # timestep, how often are we recording?
 
-dt = 1e-16
-scale = 2
+dt = 1e-17
+scale = 100
 
-# are we recording energy/position?
+# are we recording position/energy/bondLengths?
 
-energy = True
 position = True
-energyHistoryArr = [[]] * int((totalTicks / scale) + 1)
 positionHistoryArr = [[]] * int(((totalTicks / scale) + 1) * len(molecule))
+energy = True
+energyHistoryArr = [[]] * int((totalTicks / scale) + 1)
+bondLengths = True
+bondLengthHistoryArr = [[]] * int((totalTicks / scale) + 1)
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -238,7 +243,7 @@ class mol:
     # newtons
     self.forceMatrix = np.zeros((len(self.atomArray), 3))
     # atomc masses
-    self.massMatrix = np.array([atom[1]["Type"].value for atom in self.atomArray])
+    self.massMatrix = np.array([atom[1]["Type"].value * self.amu2kg for atom in self.atomArray])
     # joules
     self.potential = 0
     # seconds
@@ -268,6 +273,8 @@ class mol:
       return f
 
   def initJax(self):
+    global jit_funcs
+    jit_funcs = False
     self.kineticAtom_v = self.vmap(self.kineticAtom_, in_axes = (0, 0))
     self.distance_v = self.jit(self.vmap(self.distance_, in_axes = (0, )))
     self.angle_v = self.jit(self.vmap(self.angle_, in_axes = (0, )))
@@ -277,8 +284,13 @@ class mol:
     self.velAtom_v = self.jit(self.vmap(self.velAtom_, in_axes = (0, 0)))
     self.updatePosition_v = self.jit(self.vmap(self.updatePosition, in_axes = (0, 0, 0, 0, 0)))
     self.calcPotential_j = self.jit(self.getCalcPotential(False))
+    self.calcKinetic_j = self.jit(self.calcKinetic_)
     # self.calcPotential_j = self.jit(self.calcPotential)
     self.gradient_j = self.jit(jax.grad(self.getCalcPotential(False)))
+
+    jit_funcs = True
+    self.update_j = self.jit(self.update)
+    self.record_j = self.jit(self.record)
 
   # calculates length AB given positions
 
@@ -376,12 +388,18 @@ class mol:
   # calculates kinetic energy of single atom given mass and velocity
 
   def kineticAtom_(self, M, V):
-    return 0.5 * M * np.sum(np.square(V)) * self.amu2kg * self.A2m ** 2
+    return 0.5 * np.multiply(M, np.sum(np.square(V))) * self.A2m ** 2 # * self.amu2kg
 
   # calculates kinetic energy of molecule given masses and velocities
 
   def calcKinetic(self, V):
     return np.sum(self.kineticAtom_v(self.massMatrix, V))
+
+  def calcKinetic_(self, V):
+    sq = np.square(V).transpose()
+    sq_sum = np.sum(sq, axis = 0)
+    mv2 = np.sum(np.multiply(self.massMatrix, sq_sum), axis = 0)
+    return mv2 * 0.5 * (self.A2m ** 2) # * self.amu2kg
 
   # calculates force matrix
 
@@ -393,7 +411,7 @@ class mol:
   # calculates acceleration matrix of single atom given mass and force
 
   def accelAtom_(self, M, F):
-    return F / M / self.amu2kg / self.A2m
+    return F / M / self.A2m # / self.amu2kg
 
   # calculates acceleration matrix gives masses and forces
 
@@ -445,7 +463,7 @@ class mol:
     self.prevAccelMatrix = self.accelMatrix
 
   def update(self):
-    self.calcForce(self.posMatrix)
+    forceMatrix = self.calcForce(self.posMatrix)
     self.calcAccel(self.massMatrix, self.forceMatrix)
     self.updatePos()
     # self.calcVel(self.velMatrix, self.accelMatrix)
@@ -474,17 +492,22 @@ class mol:
 
     # print()
 
-    print(str(int(100 * self.currTick/(totalTicks / scale))) + "%")
+    print(str(int(100 * (self.currTick / (totalTicks / scale)))) + "%")
 
   def record(self):
-    if energy:
-      self.potential = self.calcPotential_j(self.posMatrix)
-      kineticE = self.calcKinetic(self.velMatrix)
-      energyHistoryArr[self.currTick] = [self.t, self.potential, kineticE]
-    
     if position:
       for i in range(len(self.atomArray)):
         positionHistoryArr[self.currTick * len(self.atomArray) + i] = [self.t, i, self.posMatrix[i, 0], self.posMatrix[i, 1], self.posMatrix[i, 2]]
+
+    if energy:
+      potential = self.calcPotential_j(self.posMatrix)
+      kineticE = self.calcKinetic_j(self.velMatrix)
+      energyHistoryArr[self.currTick] = [self.t, potential, kineticE]
+    
+    if bondLengths:
+      bondLengthHistoryArr[self.currTick] = [self.t, \
+        np.average(self.distance_v(self.posMatrix[self.ccPairs])), \
+        np.average(self.distance_v(self.posMatrix[self.chPairs]))]
 
     self.currTick += 1
 
@@ -495,19 +518,15 @@ sim = mol(molecule, dt)
 start_time = time.perf_counter()
 
 for i in range(totalTicks + 1):
-  sim.update()
-  if i % scale == 0:
-    sim.record()
-  if i % int(totalTicks / 10) == int(totalTicks / 10) - 1:
+  sim.update_j()
+
+  if i % int(totalTicks / 10) == 0:
     sim.print()
 
-print("--- %s seconds ---" % (time.perf_counter() - start_time))
+  if i % scale == 0:
+    sim.record()
 
-if energy:
-  with open('energyHistory.csv', mode='w') as energyHistory:
-    energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    for i in range(len(energyHistoryArr)):
-      energyWriter.writerow([energyHistoryArr[i][0], energyHistoryArr[i][1], energyHistoryArr[i][2]])
+print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
 if position:
   with open('positionHistory.csv', mode='w') as posHistory:
@@ -518,3 +537,41 @@ if position:
       posWriter.writerow([v['Type']])
     for i in range(len(positionHistoryArr)):
       posWriter.writerow([positionHistoryArr[i][0], positionHistoryArr[i][1], positionHistoryArr[i][2], positionHistoryArr[i][3], positionHistoryArr[i][4]])
+
+if energy:
+  with open('energyHistory.csv', mode='w') as energyHistory:
+    energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    for i in range(len(energyHistoryArr)):
+      energyWriter.writerow([energyHistoryArr[i][0], energyHistoryArr[i][1], energyHistoryArr[i][2]])
+
+  plt.figure(figsize = (20, 5))
+
+  plt.scatter([i[0] for i in energyHistoryArr], [i[1] for i in energyHistoryArr], label = 'Potential')
+  plt.scatter([i[0] for i in energyHistoryArr], [i[2] for i in energyHistoryArr], label = 'Kinetic')
+  plt.scatter([i[0] for i in energyHistoryArr], [i[1] + i[2] for i in energyHistoryArr], label = 'Total')
+
+  plt.title("Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt) + "s")
+  plt.xlabel('Time (s)')
+  plt.ylabel('Energy (J)')
+  plt.legend()
+  plt.savefig('energyPlot.png')
+
+if bondLengths:
+  with open('bondLengthHistory.csv', mode='w') as bondLengthHistory:
+    bondLengthWriter = csv.writer(bondLengthHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    for i in range(len(bondLengthHistoryArr)):
+      bondLengthWriter.writerow([bondLengthHistoryArr[i][0], bondLengthHistoryArr[i][1], bondLengthHistoryArr[i][2]])
+
+  plt.figure(figsize = (10, 5))
+
+  plt.plot([0, totalTicks * dt], [1.455, 1.455], color = 'blue', linestyle = ':')
+  plt.plot([0, totalTicks * dt], [1.099, 1.099], color = 'orange', linestyle = ':')
+
+  plt.scatter([i[0] for i in bondLengthHistoryArr], [i[1] for i in bondLengthHistoryArr], label = 'Average CC Bond Length')
+  plt.scatter([i[0] for i in bondLengthHistoryArr], [i[2] for i in bondLengthHistoryArr], label = 'Average CH Bond Length')
+
+  plt.title("Average Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt) + "s")
+  plt.xlabel('Time (s)')
+  plt.ylabel('Bond Length (Å)')
+  plt.legend()
+  plt.savefig('bondLengthPlot.png')
