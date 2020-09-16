@@ -1,5 +1,6 @@
 from collections import namedtuple
 import csv
+import math as math
 from enum import Enum
 import jax as jax
 import jax.numpy as np
@@ -68,7 +69,6 @@ ethane = {
 time_unit = 1e-12
 dist_unit = 1e-10
 mass_unit = 1e-20
-totalTicks = 1_000_000
 molecule = ethane
 
 # are we using jit/vmap?
@@ -78,13 +78,8 @@ vmap_funcs = True
 # timestep, how often are we recording?
 
 dt = 1e-18 / time_unit
-scale = 100
 
 # are we recording position/energy/bondLengths?
-
-positionHistoryArr = np.empty([0,5])
-tickHistoryArray = np.empty([0,5])
-bondLengthHistoryArr = np.empty([0,3])
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -480,7 +475,8 @@ class mol:
 
     # print()
 
-    print(str(int(100 * (self.currTick / (totalTicks / scale)))) + "%")
+    # print(str(int(100 * (self.currTick / (totalTicks / scale)))) + "%")
+    print("--- %s%% %s seconds ---" % (str(int(100 * (self.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
 
   def record(self, t, pos, vel):
     atoms = len(self.atomArray)
@@ -510,6 +506,14 @@ vel = sim.velMatrix
 accel = sim.accelMatrix
 stabilized = False
 
+totalTicks = 1_000_000
+scale = 100
+
+rows = int(math.ceil((totalTicks + 1) / scale))
+natoms = len(sim.atomArray)
+positionHistoryArr = np.empty([rows * natoms,5])
+tickHistoryArray = np.empty([rows,5])
+
 for i in range(totalTicks + 1):
   (accel, vel, pos) = sim.update_j(
     accel,
@@ -523,8 +527,16 @@ for i in range(totalTicks + 1):
 
   if i % scale == 0:
     res = sim.record_j(sim.t, pos, vel)
-    positionHistoryArr = np.concatenate((positionHistoryArr, res[0]))
-    tickHistoryArray = np.concatenate((tickHistoryArray, np.array((res[1]))))
+    positionHistoryArr = jax.ops.index_update(
+      positionHistoryArr,
+      jax.ops.index[(sim.currTick * natoms):(sim.currTick * natoms + natoms)],
+      res[0])
+    tickHistoryArray = jax.ops.index_update(
+      tickHistoryArray,
+      jax.ops.index[sim.currTick: sim.currTick + 1],
+      res[1])
+    # positionHistoryArr = np.concatenate((positionHistoryArr, res[0]))
+    # tickHistoryArray = np.concatenate((tickHistoryArray, np.array((res[1]))))
 
     # if stabilized == False and res[1][0][1] * 1e-9 > res[1][0][2]:
     #   pos = sim.posMatrix
