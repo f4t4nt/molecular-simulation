@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as onp
 import pickle as pl
 import time as time
+import pandas as pd
 
 jax.config.update('jax_enable_x64', True)
 
@@ -64,27 +65,26 @@ ethane = {
 
 # total # of update calls
 
-time_unit = 1e-0
-dist_unit = 1e-0
-mass_unit = 1e-0
+time_unit = 1e-12
+dist_unit = 1e-10
+mass_unit = 1e-20
 totalTicks = 1_000_000
 molecule = ethane
 
 # are we using jit/vmap?
-
 jit_funcs = True
 vmap_funcs = True
 
 # timestep, how often are we recording?
 
 dt = 1e-18 / time_unit
-scale = 1
+scale = 100
 
 # are we recording position/energy/bondLengths?
 
-positionHistoryArr = None
-energyHistoryArr = None
-bondLengthHistoryArr = None
+positionHistoryArr = np.empty([0,5])
+tickHistoryArray = np.empty([0,5])
+bondLengthHistoryArr = np.empty([0,3])
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -291,9 +291,9 @@ class mol:
 
     self.calcPotential_j = self.jit(self.getCalcPotential(False))
     self.calcKinetic_j = self.jit(self.calcKinetic_)
-
-    jit_funcs = False
     self.calcEnergy_j = self.jit(self.calcEnergy_)
+
+    jit_funcs = True
     self.update_j = self.jit(self.update)
     self.record_j = self.jit(self.record)
 
@@ -317,8 +317,8 @@ class mol:
     r1 = p0 - p1
     r2 = p2 - p1
     dot = np.sum(np.multiply(r1, r2), axis = 1)
-    r1_mag = np.sqrt(np.sum(np.square(r1)))
-    r2_mag = np.sqrt(np.sum(np.square(r2)))
+    r1_mag = np.sqrt(np.sum(np.square(r1), axis = 1))
+    r2_mag = np.sqrt(np.sum(np.square(r2), axis = 1))
     return dot / (r1_mag * r2_mag)
 
   # calculates angle ABC given positions
@@ -384,7 +384,7 @@ class mol:
 
       cosAngle = cosTorsionalAngle_v(pos[quads])
       potential_0 += 0.5 \
-        * np.sum(1 + 4 * cosAngle ** 3 - 3 * cosAngle ) \
+        * np.sum(1 + 4 * cosAngle ** 3 - 3 * cosAngle) \
         * angleEnergyK_ccTorsional
 
       return potential_0
@@ -491,10 +491,12 @@ class mol:
 
     (potential, kinetic) = self.calcEnergy_j(pos, vel)
     return (arr,
-      np.array(([t, potential, kinetic])),
-      np.array(([t,
+      np.array([[
+        t,
+        potential,
+        kinetic,
         np.average(self.distance_v(pos[self.ccPairs])),
-        np.average(self.distance_v(pos[self.chPairs]))])))
+        np.average(self.distance_v(pos[self.chPairs]))]]))
 
 
 print("--- 0 seconds ---")
@@ -508,7 +510,6 @@ vel = sim.velMatrix
 accel = sim.accelMatrix
 stabilized = False
 
-sim.record_j(sim.t, pos, vel)
 for i in range(totalTicks + 1):
   (accel, vel, pos) = sim.update_j(
     accel,
@@ -522,19 +523,13 @@ for i in range(totalTicks + 1):
 
   if i % scale == 0:
     res = sim.record_j(sim.t, pos, vel)
-    if positionHistoryArr is None:
-      positionHistoryArr = res[0]
-      energyHistoryArr = res[1]
-      bondLengthHistoryArr = res[2]
-    else:
-      positionHistoryArr = np.concatenate((positionHistoryArr, res[0]))
-      energyHistoryArr = np.concatenate((energyHistoryArr, res[1]))
-      bondLengthHistoryArr = np.concatenate((bondLengthHistoryArr, res[2]))
+    positionHistoryArr = np.concatenate((positionHistoryArr, res[0]))
+    tickHistoryArray = np.concatenate((tickHistoryArray, np.array((res[1]))))
 
-    if stabilized == False and res[1][1] * 1.1 > res[1][2]:
-      pos = sim.posMatrix
-    else:
-      stabilized = True
+    # if stabilized == False and res[1][0][1] * 1e-9 > res[1][0][2]:
+    #   pos = sim.posMatrix
+    # else:
+    #   stabilized = True
 
     sim.currTick += 1
 
@@ -547,55 +542,44 @@ with open('positionHistory.csv', mode='w') as posHistory:
   posWriter.writerow([scale])
   for i, (k, v) in enumerate(molecule.items()):
     posWriter.writerow([v['Type']])
-  for i in range(len(positionHistoryArr)):
-    row = positionHistoryArr[i]
-    posWriter.writerow([
-      float(row[0]),
-      int(row[1]),
-      float(row[2]),
-      float(row[3]),
-      float(row[4])])
+
+  df = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
+    .astype({"atomId": "int16"})
+
+  df.to_csv(posHistory)
+
+tickHistDf = pd.DataFrame(
+  data = tickHistoryArray,
+  columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
 
 with open('energyHistory.csv', mode='w') as energyHistory:
   energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  elems = int(len(energyHistoryArr) / 3)
-  for i in range(int(len(energyHistoryArr) / 3)):
-    energyWriter.writerow([
-      float(energyHistoryArr[i * 3 + 0]),
-      float(energyHistoryArr[i * 3 + 1]),
-      float(energyHistoryArr[i * 3 + 2])])
-
-  plt.figure(figsize = (20, 5))
-
-  plt.scatter([float(energyHistoryArr[i * 3 + 0]) for i in range(elems)], [float(energyHistoryArr[i * 3 + 1]) for i in range(elems)], label = 'Potential')
-  plt.scatter([float(energyHistoryArr[i * 3 + 0]) for i in range(elems)], [float(energyHistoryArr[i * 3 + 2]) for i in range(elems)], label = 'kinetic')
-  plt.scatter([float(energyHistoryArr[i * 3 + 0]) for i in range(elems)], [float(energyHistoryArr[i * 3 + 1] + energyHistoryArr[i * 3 + 2]) for i in range(elems)], label = 'Total')
-
-  plt.title("Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-  plt.xlabel('Time (s)')
-  plt.ylabel('Energy (J)')
-  plt.legend()
-  plt.savefig('energyPlot.png')
+  tickHistDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
 
 with open('bondLengthHistory.csv', mode='w') as bondLengthHistory:
   bondLengthWriter = csv.writer(bondLengthHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  elems = int(len(bondLengthHistoryArr) / 3)
-  for i in range(elems):
-    bondLengthWriter.writerow([
-      float(bondLengthHistoryArr[i * 3 + 0]),
-      float(bondLengthHistoryArr[i * 3 + 1]),
-      float(bondLengthHistoryArr[i * 3 + 2])])
+  tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
-  plt.figure(figsize = (10, 5))
+plt.figure(figsize = (20, 5))
+plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
+plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
+plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
 
-  plt.plot([bondLengthHistoryArr[0], totalTicks * dt * time_unit], [1.455, 1.455], color = 'blue', linestyle = ':')
-  plt.plot([bondLengthHistoryArr[0], totalTicks * dt * time_unit], [1.099, 1.099], color = 'orange', linestyle = ':')
+plt.title("Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.xlabel('Time (s)')
+plt.ylabel('Energy (J)')
+plt.legend()
+plt.savefig('energyPlot.png')
 
-  plt.scatter([bondLengthHistoryArr[i * 3 + 0] for i in range(elems)], [bondLengthHistoryArr[i * 3 + 1] for i in range(elems)], label = 'Average CC Bond Length')
-  plt.scatter([bondLengthHistoryArr[i * 3 + 0] for i in range(elems)], [bondLengthHistoryArr[i * 3 + 2] for i in range(elems)], label = 'Average CH Bond Length')
+plt.figure(figsize = (10, 5))
+plt.plot([tickHistDf["time"][0], totalTicks * dt * time_unit], [1.455, 1.455], color = 'blue', linestyle = ':')
+plt.plot([tickHistDf["time"][0], totalTicks * dt * time_unit], [1.099, 1.099], color = 'orange', linestyle = ':')
 
-  plt.title("Average Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-  plt.xlabel('Time (s)')
-  plt.ylabel('Bond Length (Å)')
-  plt.legend()
-  plt.savefig('bondLengthPlot.png')
+plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
+plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
+
+plt.title("Average Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.xlabel('Time (s)')
+plt.ylabel('Bond Length (Å)')
+plt.legend()
+plt.savefig('bondLengthPlot.png')
