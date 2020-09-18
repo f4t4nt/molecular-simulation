@@ -868,7 +868,14 @@ for i in range(totalTicks + 1):
   if i % int(totalTicks / 10) == 0:
     sim.print()
 
-  if i % scale == 0:
+  if not stabilized:
+    res = sim.record_j(sim.t, pos, vel)
+
+    if res[1][0][1] * X_stable > res[1][0][2]:
+      pos = sim.posMatrix
+    else:
+      stabilized = True
+  elif i % scale == 0:
     res = sim.record_j(sim.t, pos, vel)
 
     # time (s), position (Å)
@@ -886,14 +893,6 @@ for i in range(totalTicks + 1):
       res[1])
 
     sim.currTick += 1
-
-  if not stabilized:
-    res = sim.record_j(sim.t, pos, vel)
-
-    if res[1][0][1] * X_stable > res[1][0][2]:
-      pos = sim.posMatrix
-    else:
-      stabilized = True
 
 print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
