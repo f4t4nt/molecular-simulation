@@ -832,7 +832,7 @@ class mol:
 
     return internal
 
-molecule = isobutane 
+molecule = isobutane_modified 
 
 print("--- 0 seconds ---")
 
@@ -936,7 +936,7 @@ plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
 plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
 plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
 
-plt.title("Modified Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.title("Modified IsoButane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
 plt.xlabel('Time (ps)')
 plt.ylabel('Energy (fJ)')
 plt.legend()
@@ -949,7 +949,7 @@ plt.plot([tickHistDf["time"][0], totalTicks * dt * 1e12], [1.099, 1.099], color 
 plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
 plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
 
-plt.title("Average Modified Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.title("Average Modified IsoButane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
 plt.xlabel('Time (ps)')
 plt.ylabel('Bond Length (Å)')
 plt.legend()
