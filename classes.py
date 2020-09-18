@@ -17,61 +17,371 @@ class atoms(Enum):
   C = 12.0107
   H = 1.00784
 
-# coordinates retrieved from https://cccbdb.nist.gov
+# coordinates retrieved from https://cccbdb.nist.gov Experimental >> Geometry >> Experimental Geometries
 
 ethane = {
-    "C0" : {
-      "Type" : atoms.C,
-      "Neighbors" : ["C1","H0","H1","H2"],
-      "Position" : np.array([0.00, 0.00, 0.7680])
-    },
     "C1" : {
       "Type" : atoms.C,
-      "Neighbors" : ["C0","H3","H4","H5"],
-      "Position" : np.array([0.00, 0.00, -0.7680])
+      "Neighbors" : ["C2","H3","H4","H5"],
+      "Position" : np.array([0, 0, 0.7680])
     },
-    "H0" : {
-      "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([-1.0192, 0.00, 1.1573])
-    },
-    "H1" : {
-      "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([0.5096, 0.8826, 1.1573])
-    },
-    "H2" : {
-      "Type" : atoms.H,
-      "Neighbors" : ["C0"],
-      "Position" : np.array([0.5096, -0.8826, 1.1573])
+    "C2" : {
+      "Type" : atoms.C,
+      "Neighbors" : ["C1","H6","H7","H8"],
+      "Position" : np.array([0, 0, -0.7680])
     },
     "H3" : {
       "Type" : atoms.H,
       "Neighbors" : ["C1"],
-      "Position" : np.array([1.0192, 0.00, -1.1573])
+      "Position" : np.array([-1.0192, 0, 1.1573])
     },
     "H4" : {
       "Type" : atoms.H,
       "Neighbors" : ["C1"],
-      "Position" : np.array([-0.5096, -0.8826, -1.1573])
+      "Position" : np.array([0.5096, 0.8826, 1.1573])
     },
     "H5" : {
       "Type" : atoms.H,
       "Neighbors" : ["C1"],
+      "Position" : np.array([0.5096, -0.8826, 1.1573])
+    },
+    "H6" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
+      "Position" : np.array([1.0192, 0, -1.1573])
+    },
+    "H7" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
+      "Position" : np.array([-0.5096, -0.8826, -1.1573])
+    },
+    "H8" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
       "Position" : np.array([-0.5096, 0.8826, -1.1573])
     }
   }
 
+ethane_modified = {
+    "C1" : {
+      "Type" : atoms.C,
+      "Neighbors" : ["C2","H3","H4","H5"],
+      "Position" : np.array([0, 0, 0.7680])
+    },
+    "C2" : {
+      "Type" : atoms.C,
+      "Neighbors" : ["C1","H6","H7","H8"],
+      "Position" : np.array([0, 0, -0.7680])
+    },
+    "H3" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C1"],
+      "Position" : np.array([0, 1e-3, 1.859])
+    },
+    "H4" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C1"],
+      "Position" : np.array([0.866e-3, -0.5e-3, 1.859])
+    },
+    "H5" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C1"],
+      "Position" : np.array([-0.866e-3, -0.5e-3, 1.859])
+    },
+    "H6" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
+      "Position" : np.array([0, 1e-3, -1.859])
+    },
+    "H7" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
+      "Position" : np.array([0.866e-3, -0.5e-3, -1.859])
+    },
+    "H8" : {
+      "Type" : atoms.H,
+      "Neighbors" : ["C2"],
+      "Position" : np.array([-0.866e-3, -0.5e-3, -1.859])
+    }
+  }
 
+propane = {
+  "C1" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C2","C3","H4","H5"],
+    "Position" : np.array([0, 0.5863, 0])
+  },
+  "C2" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H6", "H8", "H9"],
+    "Position" : np.array([-1.2681, -0.2626, 0])
+  },
+  "C3" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H7", "H10", "H11"],
+    "Position" : np.array([1.2681, -0.2626, 0])
+  },
+  "H4" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C1"],
+    "Position" : np.array([0, 1.2449, 0.876])
+  },
+  "H5" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C1"],
+    "Position" : np.array([-0.0003, 1.2453, -0.876])
+  },
+  "H6" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C2"],
+    "Position" : np.array([-2.1576, 0.3742, 0])
+  },
+  "H7" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([2.1576, 0.3743, 0])
+  },
+  "H8" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C2"],
+    "Position" : np.array([-1.3271, -0.9014, 0.88])
+  },
+  "H9" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C2"],
+    "Position" : np.array([-1.3271, -0.9014, -0.88])
+  },
+  "H10" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([1.3271, -0.9014, 0.88])
+  },
+  "H11" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([1.3272, -0.9014, 0.88])
+  }
+}
+
+isobutane = {
+  "C1" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["H2", "C3", "C4", "C5"],
+    "Position" : np.array([0, 0, 0.365])
+  },
+  "H2" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C1"],
+    "Position" : np.array([0, 0, 1.473])
+  },
+  "C3" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H6", "H9", "H10"],
+    "Position" : np.array([0, 1.4528, 0.0987])
+  },
+  "C4" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H7", "H11", "H12"],
+    "Position" : np.array([1.2582, -0.7264, -0.0987])
+  },
+  "C5" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H8", "H13", "H14"],
+    "Position" : np.array([-1.2582, -0.7264, -0.0987])
+  },
+  "H6" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([0, 1.4867, -1.1931])
+  },
+  "H7" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([1.2875, -0.7433, -1.1931])
+  },
+  "H8" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-1.2875, -0.7433, -1.1931])
+  },
+  "H9" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([0.8941, 1.9575, 0.2821])
+  },
+  "H10" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([-0.8941, 1.9575, 0.2821])
+  },
+  "H11" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([1.2482, -1.752, 0.2821])
+  },
+  "H12" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([2.1422, -0.2045, 0.2821])
+  },
+  "H13" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-2.1422, -0.2045, 0.2821])
+  },
+  "H14" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-1.2482, -1.753, 0.2821])
+  }
+}
+
+isobutane_modified = {
+  "C1" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["H2", "C3", "C4", "C5"],
+    "Position" : np.array([1, 0, 0.365])
+  },
+  "H2" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C1"],
+    "Position" : np.array([0, 0, 1.473])
+  },
+  "C3" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H6", "H9", "H10"],
+    "Position" : np.array([0, 1.4528, 0.0987])
+  },
+  "C4" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H7", "H11", "H12"],
+    "Position" : np.array([1.2582, -0.7264, -0.0987])
+  },
+  "C5" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "H8", "H13", "H14"],
+    "Position" : np.array([-1.2582, -0.7264, -0.0987])
+  },
+  "H6" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([0, 1.4867, -1.1931])
+  },
+  "H7" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([1.2875, -0.7433, -1.1931])
+  },
+  "H8" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-1.2875, -0.7433, -1.1931])
+  },
+  "H9" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([0.8941, 1.9575, 0.2821])
+  },
+  "H10" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([-0.8941, 1.9575, 0.2821])
+  },
+  "H11" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([1.2482, -1.752, 0.2821])
+  },
+  "H12" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([2.1422, -0.2045, 0.2821])
+  },
+  "H13" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-2.1422, -0.2045, 0.2821])
+  },
+  "H14" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-1.2482, -1.753, 0.2821])
+  }
+}
+
+benzene = {
+  "C1" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C2", "C6", "H7"],
+    "Position" : np.array([0, 1.397, 0])
+  },
+  "C2" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C1", "C3", "H8"],
+    "Position" : np.array([1.2098, 0.6985, 0])
+  },
+  "C3" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C2", "C4", "H9"],
+    "Position" : np.array([1.2098, -0.6985, 0])
+  },
+  "C4" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C3", "C5", "H10"],
+    "Position" : np.array([0, -1.397, 0])
+  },
+  "C5" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C4", "C6", "H11"],
+    "Position" : np.array([-1.2098, -0.6985, 0])
+  },
+  "C6" : {
+    "Type" : atoms.C,
+    "Neighbors" : ["C5", "C1", "H12"],
+    "Position" : np.array([-1.2098, 0.6985, 0])
+  },
+  "H7" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C1"],
+    "Position" : np.array([0, 2.481, 0])
+  },
+  "H8" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C2"],
+    "Position" : np.array([2.1486, 1.2405, 0])
+  },
+  "H9" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C3"],
+    "Position" : np.array([2.1486, -1.2405, 0])
+  },
+  "H10" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C4"],
+    "Position" : np.array([0, -2.418, 0])
+  },
+  "H11" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C5"],
+    "Position" : np.array([-2.1486, -1.2405, 0])
+  },
+  "H12" : {
+    "Type" : atoms.H,
+    "Neighbors" : ["C6"],
+    "Position" : np.array([-2.1486, 1.2405, 0])
+  }
+}
+
+# scaled units to prevent overflow
 
 time_unit = 1e-12
 dist_unit = 1e-10
 mass_unit = 1e-20
-molecule = ethane
 
-################################################################################
-# constants
-################################################################################
+#############
+# CONSTANTS #
+#############
+
 # kcal/Å^2
 # kcal/rad^2
 
@@ -98,6 +408,11 @@ kcal2MU = kcal2J * (1 / mass_unit) * (time_unit / dist_unit) ** 2
 # Å
 # rad
 X_cc = 1.455 * A2m
+
+################################################################################################################################################################################
+# 1.455Å according to https://dpl6hyzg28thp.cloudfront.net/media/Lifson_and_Warshel_-_1968_-_Consistent_Force_Field_for_Calculations_of_Conform.pdf but 1.54Å in other sources #
+################################################################################################################################################################################
+
 X_ch = 1.099 * A2m
 X_ccc = 1.937
 X_hch = 1.911
@@ -113,15 +428,14 @@ angleEnergyK_hch = K_hch * kcal2MU / N
 angleEnergyK_cch = K_cch * kcal2MU / N
 angleEnergyK_ccTorsional = K_ccTorsional * kcal2MU / N
 
-# are we using jit/vmap?
-jit_funcs = True
-vmap_funcs = True
+# jit/vmap switch
 
-# timestep, how often are we recording?
+jit_funcs = True
+vmap_funcs = True 
+
+# timestep
 
 dt = 1e-18 / time_unit
-
-# are we recording position/energy/bondLengths?
 
 class mol:
   def __init__ (self, atoms, dt):
@@ -135,7 +449,9 @@ class mol:
     self.initMatrices()
     self.initJax()
 
-  # reads bond relations and converts to readable format
+  ########################################################
+  # reads bond relations and converts to readable format #
+  ########################################################
 
   def initAtomArrays(self):
     self.atomArray = []
@@ -144,7 +460,9 @@ class mol:
       self.atomArray.append((k, v))
       self.atomMap[k] = i
 
-  # creates array of CC, CH pairs
+  #################################
+  # creates array of CC, CH pairs #
+  #################################
 
   def initPairs(self):
     self.pairs = []
@@ -172,8 +490,10 @@ class mol:
       np.full((1, len(self.ccPairs)), distEnergyK_cc),
       np.full((1, len(self.chPairs)), distEnergyK_ch)),
       axis = 1)
-      
-  # creates array of CCC, HCH, CCH triples
+  
+  ##########################################
+  # creates array of CCC, HCH, CCH triples #
+  ##########################################
 
   def initTriples(self):
     self.triples = []
@@ -209,7 +529,9 @@ class mol:
       np.full((1, len(self.cchTriples)), angleEnergyK_cch)),
       axis = 1)
 
-  # creates array of _CC_ quads
+  ###############################
+  # creates array of _CC_ quads #
+  ###############################
 
   def initQuads(self):
     self.quads = []
@@ -228,7 +550,9 @@ class mol:
     
     self.quads = np.array(self.quads)
 
-  # creates variable matrices
+  #############################
+  # creates variable matrices #
+  #############################
 
   def initMatrices(self):
     # angstroms
@@ -276,7 +600,9 @@ class mol:
     self.update_j = self.jit(self.update(vmap_funcs))
     self.record_j = self.jit(self.record(vmap_funcs))
 
-  # calculates length AB given positions
+  ########################################
+  # calculates length AB given positions #
+  ########################################
 
   def distance_(self, use_v):
     def v(P):
@@ -297,7 +623,9 @@ class mol:
 
     return v if use_v else n
 
-  # calculates cosine of angle ABC given positions
+  ##################################################
+  # calculates cosine of angle ABC given positions #
+  ##################################################
 
   def cosAngle_(self, P):
     p0 = P[0]
@@ -323,8 +651,9 @@ class mol:
     r2_mag = np.sqrt(np.sum(np.square(r2), axis = 1))
     return dot / (r1_mag * r2_mag)
 
-
-  # calculates angle ABC given positions
+  ########################################
+  # calculates angle ABC given positions #
+  ########################################
 
   def angle_(self, use_v):
     cosAngle = self.cosAngle_ if use_v else self.cosAngle
@@ -333,13 +662,15 @@ class mol:
 
     return angle
 
-  # calculates torsional angle ABCD given positions
+  ###################################################
+  # calculates torsional angle ABCD given positions #
+  ###################################################
 
   def torsionVecs_(self, P):
-      p0 = P[...,[0],[0,1,2]]
-      p1 = P[...,[1],[0,1,2]]
-      p2 = P[...,[2],[0,1,2]]
-      p3 = P[...,[3],[0,1,2]]
+      p0 = P[0]
+      p1 = P[1]
+      p2 = P[2]
+      p3 = P[3]
 
       r1 = p0 - p1
       r2 = p1 - p2
@@ -374,7 +705,9 @@ class mol:
 
     return internal
 
-  # calculates potential energy of molecule given positions
+  ###########################################################
+  # calculates potential energy of molecule given positions #
+  ##########################################################
 
   def getCalcPotential(self, use_v):
     atomPairs = self.atomPairs
@@ -420,7 +753,7 @@ class mol:
       sq = np.square(V).transpose()
       sq_sum = np.sum(sq, axis = 0)
       mv2 = np.sum(np.multiply(massMatrix, sq_sum), axis = 0)
-      return mv2 * 0.5 * (A2m ** 2) # * self.amu2kg
+      return mv2 * 0.5 * (A2m ** 2)
 
     return internal
 
@@ -432,7 +765,9 @@ class mol:
 
     return internal
 
-  # calculates force matrix
+  ###########################
+  # calculates force matrix #
+  ###########################
 
   def calcForce(self, use_v):
     gradient = jax.grad(self.getCalcPotential(use_v))
@@ -444,10 +779,12 @@ class mol:
   def accelAtom_(self, M, F):
     return F / M # / self.amu2kg
 
-  # calculates velocity matrix of single atom given velocity and acceleration
+  #############################################################################
+  # calculates velocity matrix of single atom given velocity and acceleration #
+  #############################################################################
+
   def updatePosition(self, P, V, A, pA, dt):
-    # using dA improves our speed by 30X
-    # we get same amount of error in total energy after 10,000 ticks with dt=3e-18 and without dA as with dt=1e-16 and with dA
+    # using dA improves speed/accuracy of simulation (3rd degree taylor series)
     dA = A - pA
     P = P + V * dt + A * (dt * dt / 2) + dA * (dt * dt / 3)
     V = V + A * dt + dA * (dt / 2)
@@ -487,14 +824,15 @@ class mol:
       return (
         arr,
         np.array([[
-          t,
-          potential,
-          kinetic,
+          t * 1e12,
+          potential * mass_unit * (time_unit / dist_unit) ** 2 * 1e-15,
+          kinetic * mass_unit * (time_unit / dist_unit) ** 2 * 1e-15,
           np.average(distance(pos[ccPairs])),
           np.average(distance(pos[chPairs]))]]))
 
     return internal
 
+molecule = isobutane 
 
 print("--- 0 seconds ---")
 
@@ -505,7 +843,11 @@ start_time = time.perf_counter()
 pos = sim.posMatrix
 vel = sim.velMatrix
 accel = sim.accelMatrix
+
+# atoms are stationary until (kinetic > potential * X_stable)
+
 stabilized = False
+X_stable = 0
 
 totalTicks = 1_000_000
 scale = 100
@@ -528,34 +870,51 @@ for i in range(totalTicks + 1):
 
   if i % scale == 0:
     res = sim.record_j(sim.t, pos, vel)
+
+    # time (s), position (Å)
+
     positionHistoryArr = jax.ops.index_update(
       positionHistoryArr,
       jax.ops.index[(sim.currTick * natoms):(sim.currTick * natoms + natoms)],
       res[0])
+
+    # time (ps), energy (fJ), bond lengths (Å)
+
     tickHistoryArray = jax.ops.index_update(
       tickHistoryArray,
       jax.ops.index[sim.currTick: sim.currTick + 1],
       res[1])
-    # positionHistoryArr = np.concatenate((positionHistoryArr, res[0]))
-    # tickHistoryArray = np.concatenate((tickHistoryArray, np.array((res[1]))))
-
-    # if stabilized == False and res[1][0][1] * 1e-9 > res[1][0][2]:
-    #   pos = sim.posMatrix
-    # else:
-    #   stabilized = True
 
     sim.currTick += 1
 
+  if not stabilized:
+    res = sim.record_j(sim.t, pos, vel)
+
+    if res[1][0][1] * X_stable > res[1][0][2]:
+      pos = sim.posMatrix
+    else:
+      stabilized = True
 
 print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
-with open('positionHistory.csv', mode='w') as posHistory:
-  posWriter = csv.writer(posHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  posWriter.writerow([len(molecule)])
-  posWriter.writerow([scale])
-  for i, (k, v) in enumerate(molecule.items()):
-    posWriter.writerow([v['Type']])
+with open('moleculeInformation.csv', mode='w') as molInfo:
+  molWriter = csv.writer(molInfo, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  molWriter.writerow([len(molecule)])
+  molWriter.writerow([scale])
 
+  atomMap = {}
+
+  for i, (k, v) in enumerate(molecule.items()):
+    molWriter.writerow([v['Type']])
+    atomMap[k] = i
+
+  for i, (k, v) in enumerate(molecule.items()):
+    bondCount = len(v['Neighbors'])
+    molWriter.writerow([bondCount])
+    for i in v['Neighbors']:
+      molWriter.writerow([atomMap[i]])
+
+with open('positionHistory.csv', mode='w') as posHistory:
   df = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
     .astype({"atomId": "int16"})
 
@@ -573,26 +932,26 @@ with open('bondLengthHistory.csv', mode='w') as bondLengthHistory:
   bondLengthWriter = csv.writer(bondLengthHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
   tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
-plt.figure(figsize = (20, 5))
+plt.figure(figsize = (tickHistDf["time"].count() / 50, 5))
 plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
 plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
 plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
 
-plt.title("Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-plt.xlabel('Time (s)')
-plt.ylabel('Energy (J)')
+plt.title("Modified Ethane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.xlabel('Time (ps)')
+plt.ylabel('Energy (fJ)')
 plt.legend()
 plt.savefig('energyPlot.png')
 
-plt.figure(figsize = (10, 5))
-plt.plot([tickHistDf["time"][0], totalTicks * dt * time_unit], [1.455, 1.455], color = 'blue', linestyle = ':')
-plt.plot([tickHistDf["time"][0], totalTicks * dt * time_unit], [1.099, 1.099], color = 'orange', linestyle = ':')
+plt.figure(figsize = (tickHistDf["time"].count() / 50, 5))
+plt.plot([tickHistDf["time"][0], totalTicks * dt * 1e12], [1.455, 1.455], color = 'blue', linestyle = ':')
+plt.plot([tickHistDf["time"][0], totalTicks * dt * 1e12], [1.099, 1.099], color = 'orange', linestyle = ':')
 
 plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
 plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
 
-plt.title("Average Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-plt.xlabel('Time (s)')
+plt.title("Average Modified Ethane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+plt.xlabel('Time (ps)')
 plt.ylabel('Bond Length (Å)')
 plt.legend()
 plt.savefig('bondLengthPlot.png')
