@@ -1,14 +1,16 @@
+import argparse as ap
 from collections import namedtuple
 import csv
-import math as math
 from enum import Enum
 import jax as jax
 import jax.numpy as np
+import math as math
 import matplotlib.pyplot as plt
 import numpy as onp
-import pickle as pl
-import time as time
 import pandas as pd
+import pickle as pl
+import random as rand
+import time as time
 
 jax.config.update('jax_enable_x64', True)
 
@@ -18,6 +20,8 @@ class atoms(Enum):
   H = 1.00784
 
 # coordinates retrieved from https://cccbdb.nist.gov Experimental >> Geometry >> Experimental Geometries
+
+molecules = {}
 
 ethane = {
     "C1" : {
@@ -62,6 +66,8 @@ ethane = {
     }
   }
 
+molecules["ethane"] = ethane
+
 ethane_modified = {
     "C1" : {
       "Type" : atoms.C,
@@ -104,6 +110,8 @@ ethane_modified = {
       "Position" : np.array([-0.866e-3, -0.5e-3, -1.859])
     }
   }
+
+molecules["ethane_modified"] = ethane_modified
 
 propane = {
   "C1" : {
@@ -159,9 +167,11 @@ propane = {
   "H11" : {
     "Type" : atoms.H,
     "Neighbors" : ["C3"],
-    "Position" : np.array([1.3272, -0.9014, 0.88])
+    "Position" : np.array([1.3272, -0.9014, -0.88])
   }
 }
+
+molecules["propane"] = propane
 
 isobutane = {
   "C1" : {
@@ -236,16 +246,18 @@ isobutane = {
   }
 }
 
+molecules["isobutane"] = isobutane
+
 isobutane_modified = {
   "C1" : {
     "Type" : atoms.C,
     "Neighbors" : ["H2", "C3", "C4", "C5"],
-    "Position" : np.array([1, 0, 0.365])
+    "Position" : np.array([0, 0, 1.365])
   },
   "H2" : {
     "Type" : atoms.H,
     "Neighbors" : ["C1"],
-    "Position" : np.array([0, 0, 1.473])
+    "Position" : np.array([0, 0, 2.473])
   },
   "C3" : {
     "Type" : atoms.C,
@@ -309,6 +321,8 @@ isobutane_modified = {
   }
 }
 
+molecules["isobutane_modified"] = isobutane_modified
+
 benzene = {
   "C1" : {
     "Type" : atoms.C,
@@ -358,7 +372,7 @@ benzene = {
   "H10" : {
     "Type" : atoms.H,
     "Neighbors" : ["C4"],
-    "Position" : np.array([0, -2.418, 0])
+    "Position" : np.array([0, -2.481, 0])
   },
   "H11" : {
     "Type" : atoms.H,
@@ -371,6 +385,8 @@ benzene = {
     "Position" : np.array([-2.1486, 1.2405, 0])
   }
 }
+
+molecules["benzene"] = benzene
 
 # scaled units to prevent overflow
 
@@ -433,19 +449,17 @@ angleEnergyK_ccTorsional = K_ccTorsional * kcal2MU / N
 jit_funcs = True
 vmap_funcs = True 
 
-# timestep
-
-dt = 1e-18 / time_unit
-
 class mol:
-  def __init__ (self, atoms, dt):
+  def __init__ (self, atoms, dt, randomize):
     self.atoms = atoms
     self.dt = dt
+    self.randomize = randomize
 
     self.initAtomArrays()
     self.initPairs()
     self.initTriples()
     self.initQuads()
+    self.initRandMatrix()
     self.initMatrices()
     self.initJax()
 
@@ -550,13 +564,33 @@ class mol:
     
     self.quads = np.array(self.quads)
 
+  #####################################################################
+  # creates random displacement matrix to offset predefined positions #
+  #####################################################################
+
+  def initRandMatrix(self):
+    firstLine = True
+
+    for i in range(len(self.atomArray)):
+      theta = rand.uniform(0, 2 * np.pi)
+      z = rand.uniform(-1, 1)
+      randVector = np.array([[np.sqrt(1 - z ** 2) * np.cos(theta),
+            np.sqrt(1 - z ** 2) * np.sin(theta),
+            z]]) * rand.uniform(0, self.randomize)
+
+      if not firstLine:
+        self.randMatrix = np.concatenate((self.randMatrix, randVector), axis = 0)
+      else:
+        self.randMatrix = np.array(randVector)
+        firstLine = False
+
   #############################
   # creates variable matrices #
   #############################
 
   def initMatrices(self):
     # angstroms
-    self.posMatrix = np.array([([pos * A2m for pos in atom[1]["Position"]]) for atom in self.atomArray])
+    self.posMatrix = np.array([([pos * A2m for pos in atom[1]["Position"]]) for atom in self.atomArray]) + self.randMatrix
     # angstroms/second
     self.velMatrix = np.zeros((len(self.atomArray), 3))
     # angstroms/second^2
@@ -806,9 +840,6 @@ class mol:
 
     return internal
 
-  def print(self):
-    print("--- %s%% %s seconds ---" % (str(int(100 * (self.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
-
   def record(self, use_v):
     calcEnergy = self.calcEnergy_(use_v)
     distance = self.distance_v if use_v else self.distance_(False)
@@ -832,125 +863,153 @@ class mol:
 
     return internal
 
-molecule = isobutane_modified 
+def Main(
+  input_mol,
+  input_dt,
+  input_randomize_const,
+  input_ticks,
+  input_scale,
+  input_stablization_const):
 
-print("--- 0 seconds ---")
+  molecule = molecules[input_mol]
+  dt = input_dt / time_unit
+  randomize = input_randomize_const
 
-sim = mol(molecule, dt)
+  print("--- 0 seconds ---")
 
-start_time = time.perf_counter()
+  sim = mol(molecule, dt, randomize)
 
-pos = sim.posMatrix
-vel = sim.velMatrix
-accel = sim.accelMatrix
+  start_time = time.perf_counter()
 
-# atoms are stationary until (kinetic > potential * X_stable)
+  pos = sim.posMatrix
+  vel = sim.velMatrix
+  accel = sim.accelMatrix
 
-stabilized = False
-X_stable = 0
+  # atoms are stationary until (kinetic > potential * X_stable)
 
-totalTicks = 1_000_000
-scale = 100
+  stabilized = False
+  X_stable = input_stablization_const
 
-rows = int(math.ceil((totalTicks + 1) / scale))
-natoms = len(sim.atomArray)
-positionHistoryArr = np.empty([rows * natoms,5])
-tickHistoryArray = np.empty([rows,5])
+  totalTicks = input_ticks
+  scale = input_scale
 
-for i in range(totalTicks + 1):
-  (accel, vel, pos) = sim.update_j(
-    accel,
-    vel,
-    pos)
+  rows = int(math.ceil((input_ticks + 1) / input_scale))
+  natoms = len(sim.atomArray)
+  positionHistoryArr = np.empty([rows * natoms,5])
+  tickHistoryArray = np.empty([rows,5])
 
-  sim.t += sim.dt * time_unit
+  for i in range(totalTicks + 1):
+    (accel, vel, pos) = sim.update_j(
+      accel,
+      vel,
+      pos)
 
-  if i % int(totalTicks / 10) == 0:
-    sim.print()
+    sim.t += sim.dt * time_unit
 
-  if not stabilized:
-    res = sim.record_j(sim.t, pos, vel)
+    if i % int(totalTicks / 10) == 0:
+      print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
 
-    if res[1][0][1] * X_stable > res[1][0][2]:
-      pos = sim.posMatrix
-    else:
-      stabilized = True
-  elif i % scale == 0:
-    res = sim.record_j(sim.t, pos, vel)
+    if not stabilized:
+      res = sim.record_j(sim.t, pos, vel)
 
-    # time (s), position (Å)
+      if res[1][0][1] * X_stable > res[1][0][2]:
+        pos = sim.posMatrix
+      else:
+        stabilized = True
 
-    positionHistoryArr = jax.ops.index_update(
-      positionHistoryArr,
-      jax.ops.index[(sim.currTick * natoms):(sim.currTick * natoms + natoms)],
-      res[0])
+    if i % scale == 0:
+      res = sim.record_j(sim.t, pos, vel)
 
-    # time (ps), energy (fJ), bond lengths (Å)
+      # time (s), position (Å)
 
-    tickHistoryArray = jax.ops.index_update(
-      tickHistoryArray,
-      jax.ops.index[sim.currTick: sim.currTick + 1],
-      res[1])
+      positionHistoryArr = jax.ops.index_update(
+        positionHistoryArr,
+        jax.ops.index[(sim.currTick * natoms):(sim.currTick * natoms + natoms)],
+        res[0])
 
-    sim.currTick += 1
+      # time (ps), energy (fJ), bond lengths (Å)
 
-print("--- %s seconds ---" % (time.perf_counter() - start_time))
+      tickHistoryArray = jax.ops.index_update(
+        tickHistoryArray,
+        jax.ops.index[sim.currTick: sim.currTick + 1],
+        res[1])
 
-with open('moleculeInformation.csv', mode='w') as molInfo:
-  molWriter = csv.writer(molInfo, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  molWriter.writerow([len(molecule)])
-  molWriter.writerow([scale])
+      sim.currTick += 1
 
-  atomMap = {}
+  print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
-  for i, (k, v) in enumerate(molecule.items()):
-    molWriter.writerow([v['Type']])
-    atomMap[k] = i
+  with open(input_mol + '.csv', mode='w') as molInfo:
+    molWriter = csv.writer(molInfo, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    molWriter.writerow([len(molecule)])
+    molWriter.writerow([scale])
 
-  for i, (k, v) in enumerate(molecule.items()):
-    bondCount = len(v['Neighbors'])
-    molWriter.writerow([bondCount])
-    for i in v['Neighbors']:
-      molWriter.writerow([atomMap[i]])
+    atomMap = {}
 
-with open('positionHistory.csv', mode='w') as posHistory:
-  df = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
-    .astype({"atomId": "int16"})
+    for i, (k, v) in enumerate(molecule.items()):
+      molWriter.writerow([v['Type']])
+      atomMap[k] = i
 
-  df.to_csv(posHistory)
+    for i, (k, v) in enumerate(molecule.items()):
+      bondCount = len(v['Neighbors'])
+      molWriter.writerow([bondCount])
+      for i in v['Neighbors']:
+        molWriter.writerow([atomMap[i]])
 
-tickHistDf = pd.DataFrame(
-  data = tickHistoryArray,
-  columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
+  with open(input_mol + '_positionHistory.csv', mode='w') as posHistory:
+    df = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
+      .astype({"atomId": "int16"})
 
-with open('energyHistory.csv', mode='w') as energyHistory:
-  energyWriter = csv.writer(energyHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  tickHistDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
+    df.to_csv(posHistory)
 
-with open('bondLengthHistory.csv', mode='w') as bondLengthHistory:
-  bondLengthWriter = csv.writer(bondLengthHistory, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-  tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
+  tickHistDf = pd.DataFrame(
+    data = tickHistoryArray,
+    columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
 
-plt.figure(figsize = (tickHistDf["time"].count() / 50, 5))
-plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
-plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
-plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
+  with open(input_mol + '_energyHistory.csv', mode='w') as energyHistory:
+    tickHistDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
 
-plt.title("Modified IsoButane Energy Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-plt.xlabel('Time (ps)')
-plt.ylabel('Energy (fJ)')
-plt.legend()
-plt.savefig('energyPlot.png')
+  with open(input_mol + '_bondLengthHistory.csv', mode='w') as bondLengthHistory:
+    tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
-plt.figure(figsize = (tickHistDf["time"].count() / 50, 5))
-plt.plot([tickHistDf["time"][0], totalTicks * dt * 1e12], [1.455, 1.455], color = 'blue', linestyle = ':')
-plt.plot([tickHistDf["time"][0], totalTicks * dt * 1e12], [1.099, 1.099], color = 'orange', linestyle = ':')
+  plt.figure(figsize = (max(10, tickHistDf["time"].count() / 100), 5))
+  plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
+  plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
+  plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
 
-plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
-plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
+  plt.title(input_mol + " Energy Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+  plt.xlabel('Time (ps)')
+  plt.ylabel('Energy (fJ)')
+  plt.legend()
+  plt.savefig(input_mol + '_energyPlot.png')
 
-plt.title("Average Modified IsoButane Bond Lengths Over Time for " + str(totalTicks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-plt.xlabel('Time (ps)')
-plt.ylabel('Bond Length (Å)')
-plt.legend()
-plt.savefig('bondLengthPlot.png')
+  plt.figure(figsize = (max(10, tickHistDf["time"].count() / 400), 5))
+  plt.plot([tickHistDf["time"][0], tickHistDf["time"][int(input_ticks / input_scale)]], [1.455, 1.455], color = 'blue', linestyle = ':')
+  plt.plot([tickHistDf["time"][0], tickHistDf["time"][int(input_ticks / input_scale)]], [1.099, 1.099], color = 'orange', linestyle = ':')
+
+  plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
+  plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
+
+  plt.title("Average " + input_mol + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+  plt.xlabel('Time (ps)')
+  plt.ylabel('Bond Length (Å)')
+  plt.legend()
+  plt.savefig(input_mol + '_bondLengthPlot.png')
+
+parser = ap.ArgumentParser(description="Simulate one of following molecules: ethane, modified_ethane, propane, isobutane, modified_isobutane, benzene")
+parser.add_argument('molecule', help = "molecule name")
+parser.add_argument('--dt', type=float, dest='dt', default = 1e-18, help = "size of timestep (default: 1e-18")
+parser.add_argument('--randomize_const', type=float, dest='randomize_const', default = 0.05, help = "amount of randomization in initial positions, 0 for no randomization (default: 0.05)")
+parser.add_argument('--iterations', type=int, dest = 'iterations', default= 10_000, help = 'number of iterations (default: 10,000)')
+parser.add_argument('--scale', type=int, dest = 'scale', default=100, help = 'create output per scale iteration (default: 100)')
+parser.add_argument('--stablization_const', type=float, dest = 'stablization_const', default=0.1, help = 'molecule will be frozen until kinetic_E>potential_E*stablization_const (default: 0.1)')
+
+if __name__ == "__main__":
+  args = parser.parse_args()
+  if args:
+    Main(
+      args.molecule,
+      args.dt,
+      args.randomize_const,
+      args.iterations,
+      args.scale,
+      args.stablization_const)
