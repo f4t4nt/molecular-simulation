@@ -856,8 +856,8 @@ class mol:
         arr,
         np.array([[
           t * 1e12,
-          potential * mass_unit * (time_unit / dist_unit) ** 2 * 1e-15,
-          kinetic * mass_unit * (time_unit / dist_unit) ** 2 * 1e-15,
+          potential * mass_unit * (time_unit / dist_unit) ** 2 * 1e24,
+          kinetic * mass_unit * (time_unit / dist_unit) ** 2 * 1e24,
           np.average(distance(pos[ccPairs])),
           np.average(distance(pos[chPairs]))]]))
 
@@ -961,6 +961,10 @@ def Main(
 
     df.to_csv(posHistory)
 
+  ####################
+  # prints csv files #
+  ####################
+
   tickHistDf = pd.DataFrame(
     data = tickHistoryArray,
     columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
@@ -971,29 +975,114 @@ def Main(
   with open(input_mol + '_bondLengthHistory.csv', mode='w') as bondLengthHistory:
     tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
-  plt.figure(figsize = (max(10, tickHistDf["time"].count() / 100), 5))
-  plt.scatter(tickHistDf["time"], tickHistDf["potentialE"], label = 'Potential')
-  plt.scatter(tickHistDf["time"], tickHistDf["kineticE"], label = 'Kinetic')
-  plt.scatter(tickHistDf["time"], tickHistDf["potentialE"] + tickHistDf["kineticE"], label = 'Total')
+  ############################
+  # prints full energy plot #
+  ############################
 
-  plt.title(input_mol + " Energy Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-  plt.xlabel('Time (ps)')
-  plt.ylabel('Energy (fJ)')
-  plt.legend()
-  plt.savefig(input_mol + '_energyPlot.png')
+  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
 
-  plt.figure(figsize = (max(10, tickHistDf["time"].count() / 400), 5))
-  plt.plot([tickHistDf["time"][0], tickHistDf["time"][int(input_ticks / input_scale)]], [1.455, 1.455], color = 'blue', linestyle = ':')
-  plt.plot([tickHistDf["time"][0], tickHistDf["time"][int(input_ticks / input_scale)]], [1.099, 1.099], color = 'orange', linestyle = ':')
+  #################################
+  # prints Q1 of full energy plot #
+  #################################
 
-  plt.scatter(tickHistDf["time"], tickHistDf["CC_Bonds"], label = 'Average CC Bond Length')
-  plt.scatter(tickHistDf["time"], tickHistDf["CH_Bonds"], label = 'Average CH Bond Length')
+  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
 
-  plt.title("Average " + input_mol + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
-  plt.xlabel('Time (ps)')
-  plt.ylabel('Bond Length (Å)')
-  plt.legend()
-  plt.savefig(input_mol + '_bondLengthPlot.png')
+  #################################
+  # prints Q4 of full energy plot #
+  #################################
+
+  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
+
+  ###########################
+  # prints bond length plot #
+  ###########################
+
+  draw_bond(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
+
+  ################################
+  # prints bond length histogram #
+  ################################
+
+  draw_bond_histogram(tickHistDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
+
+def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
+    dataLen = energyHistory["time"].count()
+    font = {'family' : 'DejaVu Sans',
+        'size' : max(12, dataLen / 300 * (q_end - q_start) / 4)}
+
+    rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
+
+    plt.figure(figsize = (max(10, dataLen / 100 * (q_end - q_start) / 4), 5))
+    plt.rc('font', **font)
+    plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng], label = 'Potential')
+    plt.scatter(energyHistory["time"][rng], energyHistory["kineticE"][rng], label = 'Kinetic')
+    plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng] + energyHistory["kineticE"][rng], label = 'Total')
+
+    plt.title(input_mol.capitalize() + " Energy Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
+    plt.xlabel('Time (ps)')
+    plt.ylabel('Energy (yJ)')
+    plt.legend(prop = {'size' : max(12, dataLen / 400 * (q_end - q_start) / 4)})
+    plt.tight_layout()
+
+    if out_file is None:
+        plt.figure()
+    else:
+        plt.savefig(out_file)
+
+def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
+    dataLen = bondHistory["time"].count()
+    font = {'family' : 'DejaVu Sans',
+        'size' : max(12, dataLen / 750 * (q_end - q_start) / 4)}
+
+    rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
+
+    plt.figure(figsize = (max(10, dataLen / 400 * (q_end - q_start) / 4), 5))
+    plt.rc('font', **font)
+    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.455, 1.455], color = 'blue', linestyle = ':')
+    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.099, 1.099], color = 'orange', linestyle = ':')
+
+    plt.scatter(bondHistory["time"][rng], bondHistory["CC_Bonds"][rng], label = 'Average CC Bond Length')
+    plt.scatter(bondHistory["time"][rng], bondHistory["CH_Bonds"][rng], label = 'Average CH Bond Length')
+
+    plt.title("Average " + input_mol.capitalize() + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
+    plt.xlabel('Time (ps)')
+    plt.ylabel('Bond Length (Å)')
+    plt.legend(prop = {'size' : max(12, dataLen / 1000 * (q_end - q_start) / 4)})
+    plt.tight_layout()
+
+    if out_file is None:
+        plt.figure()
+    else:
+        plt.savefig(out_file)
+
+def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binWidth, out_file = None):
+    font = {'family' : 'DejaVu Sans',
+        'size' : 12}
+
+    plt.figure(figsize = (10, 5))
+    plt.rc('font', **font)
+
+    cc_bins = np.arange(min(bondHistory["CC_Bonds"]), max(bondHistory["CC_Bonds"]) + binWidth, binWidth)
+    cc_hist = plt.hist(bondHistory["CC_Bonds"], bins = cc_bins, label = 'Average CC Bond Length')
+
+    ch_bins = np.arange(min(bondHistory["CH_Bonds"]), max(bondHistory["CH_Bonds"]) + binWidth, binWidth)
+    ch_hist = plt.hist(bondHistory["CH_Bonds"], bins = ch_bins, label = 'Average CH Bond Length')
+
+    maxY = max(np.max(cc_hist[0]), np.max(ch_hist[0]))
+
+    plt.plot([1.455, 1.455], [0, maxY * 1.25], color = 'blue', linestyle = ':')
+    plt.plot([1.099, 1.099], [0, maxY * 1.25], color = 'orange', linestyle = ':')
+
+    plt.title("Histogram of Average " + input_mol.capitalize() + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
+    plt.xlabel('Bond Length (Å)')
+    plt.ylabel('Counts')
+    plt.legend(prop = {'size' : 12})
+    plt.tight_layout()
+
+    if out_file is None:
+        plt.figure()
+    else:
+        plt.savefig(out_file)
 
 parser = ap.ArgumentParser(description="Simulate one of following molecules: ethane, modified_ethane, propane, isobutane, modified_isobutane, benzene")
 parser.add_argument('molecule', help = "molecule name")
