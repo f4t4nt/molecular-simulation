@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "mol_simulation.py",
             "console": "integratedTerminal",
-            "args": ["propane", "--iterations", "1000000", "--stablization_const", "0"]
+            "args": ["ethane", "--iterations", "1000000", "--stablization_const", "0"]
         }
     ]
 }

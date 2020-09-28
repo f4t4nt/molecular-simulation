@@ -447,7 +447,7 @@ angleEnergyK_ccTorsional = K_ccTorsional * kcal2MU / N
 # jit/vmap switch
 
 jit_funcs = True
-vmap_funcs = True 
+vmap_funcs = True
 
 class mol:
   def __init__ (self, atoms, dt, randomize):
@@ -652,7 +652,7 @@ class mol:
       p1 = P[...,[1],[0,1,2]]
 
       r = p0 - p1
-      r_mag = np.sqrt(np.sum(np.square(r)))
+      r_mag = np.sqrt(np.sum(np.square(r), axis = 1))
       return r_mag
 
     return v if use_v else n
@@ -856,8 +856,8 @@ class mol:
         arr,
         np.array([[
           t * 1e12,
-          potential * mass_unit * (time_unit / dist_unit) ** 2 * 1e24,
-          kinetic * mass_unit * (time_unit / dist_unit) ** 2 * 1e24,
+          potential * mass_unit * (dist_unit / time_unit) ** 2 * 1e21,
+          kinetic * mass_unit * (dist_unit / time_unit) ** 2 * 1e21,
           np.average(distance(pos[ccPairs])),
           np.average(distance(pos[chPairs]))]]))
 
@@ -1020,7 +1020,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
 
     plt.title(input_mol.capitalize() + " Energy Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
-    plt.ylabel('Energy (yJ)')
+    plt.ylabel('Energy (zJ)')
     plt.legend(prop = {'size' : max(12, dataLen / 400 * (q_end - q_start) / 4)})
     plt.tight_layout()
 
