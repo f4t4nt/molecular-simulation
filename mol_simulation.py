@@ -955,7 +955,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
     plt.scatter(energyHistory["time"][rng], energyHistory["kineticE"][rng], label = 'Kinetic', s = 2.5)
     plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng] + energyHistory["kineticE"][rng], label = 'Total', s = 2.5)
 
-    plt.title(input_mol.capitalize() + " Energy Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
+    plt.title(input_mol.capitalize() + " Energy for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
     plt.ylabel('Energy (zJ)')
     plt.ylim(bottom=0)
@@ -982,7 +982,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
     plt.scatter(bondHistory["time"][rng], bondHistory["CC_Bonds"][rng], label = 'Average CC Bond Length', s = 2.5)
     plt.scatter(bondHistory["time"][rng], bondHistory["CH_Bonds"][rng], label = 'Average CH Bond Length', s = 2.5)
 
-    plt.title("Average " + input_mol.capitalize() + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
+    plt.title("Average " + input_mol.capitalize() + " Bond Lengths for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
     plt.ylabel('Bond Length (Å)')
     plt.ylim(bottom=0)
