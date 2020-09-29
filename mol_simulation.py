@@ -949,7 +949,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), 100), 5))
+    plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), 250), 5))
     plt.rc('font', **font)
     plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng], label = 'Potential', s = 2.5)
     plt.scatter(energyHistory["time"][rng], energyHistory["kineticE"][rng], label = 'Kinetic', s = 2.5)
@@ -958,6 +958,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
     plt.title(input_mol.capitalize() + " Energy Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
     plt.ylabel('Energy (zJ)')
+    plt.ylim(bottom=0)
     plt.legend(prop = {'size' : min(max(12, dataLen / 400 * (q_end - q_start) / 4), 24)}, markerscale = 5)
     plt.tight_layout()
 
@@ -973,7 +974,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), 100), 5))
+    plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), 250), 5))
     plt.rc('font', **font)
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.455, 1.455], color = 'blue', linestyle = ':')
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.099, 1.099], color = 'orange', linestyle = ':')
@@ -984,6 +985,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
     plt.title("Average " + input_mol.capitalize() + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
     plt.ylabel('Bond Length (Å)')
+    plt.ylim(bottom=0)
     plt.legend(prop = {'size' : min(max(12, dataLen / 1000 * (q_end - q_start) / 4), 24)}, markerscale = 5)
     plt.tight_layout()
 
