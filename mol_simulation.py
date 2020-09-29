@@ -633,6 +633,7 @@ class mol:
 
     self.update_j = self.jit(self.update(vmap_funcs))
     self.record_j = self.jit(self.record(vmap_funcs))
+    self.update_loop_j = self.jit(self.update_loop(vmap_funcs))
 
   ########################################
   # calculates length AB given positions #
@@ -824,6 +825,17 @@ class mol:
     V = V + A * dt + dA * (dt / 2)
     return (P, V)
 
+  def update_loop(self, use_v):
+    update_func = self.update(use_v)
+
+    def loop_func(i, tupl):
+      return update_func(tupl[0], tupl[1], tupl[2])
+
+    def internal(loops, tupl):
+      return jax.lax.fori_loop(0, loops, loop_func, tupl)
+
+    return internal
+
   def update(self, use_v):
     calcForce = self.calcForce(use_v)
     massMatrix = self.massMatrix
@@ -863,6 +875,26 @@ class mol:
 
     return internal
 
+def get_df_posHistoryArr(positionHistoryArr, df):
+  df2 = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
+    .astype({"atomId": "int16"})
+
+  if df is None:
+    return df2
+
+  return df.append(df2)
+
+def get_df_tickHistoryArr(tickHistoryArray, df):
+  tickHistDf = pd.DataFrame(
+    data = tickHistoryArray,
+    columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
+
+  if df is None:
+    return tickHistDf
+  
+  return df.append(tickHistDf)
+
+
 def Main(
   input_mol,
   input_dt,
@@ -895,18 +927,26 @@ def Main(
 
   rows = int(math.ceil((input_ticks + 1) / input_scale))
   natoms = len(sim.atomArray)
-  positionHistoryArr = np.empty([rows * natoms,5])
-  tickHistoryArray = np.empty([rows,5])
 
-  for i in range(totalTicks + 1):
-    (accel, vel, pos) = sim.update_j(
-      accel,
-      vel,
-      pos)
+  posHistoryDf = None
+  tickHistoryDf = None
+  positionHistoryArr = None
+  tickHistoryArray = None
+  positionHistoryArrAccum = None
+  tickHistoryArrayAccum = None
+  accum = 0
+  arrBatch = 1000
 
-    sim.t += sim.dt * time_unit
+  for i in range(0, totalTicks + 1, scale):
+    (accel, vel, pos) = sim.update_loop_j(scale, (accel, vel, pos))
+    # (accel, vel, pos) = sim.update_j(
+    #   accel,
+    #   vel,
+    #   pos)
 
-    if i % int(totalTicks / 10) == 0:
+    sim.t += sim.dt * time_unit * scale
+
+    if int(i / scale) % int(totalTicks / (100 * scale)) == 0:
       print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
 
     if not stabilized:
@@ -917,25 +957,49 @@ def Main(
       else:
         stabilized = True
 
-    if i % scale == 0:
+    if i % 1 == 0:
       res = sim.record_j(sim.t, pos, vel)
 
       # time (s), position (Å)
 
+      if int(i / scale) % arrBatch == 0:
+        if not positionHistoryArr is None:
+          if not positionHistoryArrAccum is None:
+            positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
+            tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
+          else:
+            positionHistoryArrAccum = positionHistoryArr
+            tickHistoryArrayAccum = tickHistoryArray
+          accum += arrBatch
+
+        arrRows = min(rows, arrBatch)
+        positionHistoryArr = np.empty([arrRows * natoms,5])
+        tickHistoryArray = np.empty([arrRows,5])
+        rows -= arrBatch
+
+      startIdx = (sim.currTick - accum)
       positionHistoryArr = jax.ops.index_update(
         positionHistoryArr,
-        jax.ops.index[(sim.currTick * natoms):(sim.currTick * natoms + natoms)],
+        jax.ops.index[(startIdx * natoms):(startIdx * natoms + natoms)],
         res[0])
 
       # time (ps), energy (fJ), bond lengths (Å)
 
       tickHistoryArray = jax.ops.index_update(
         tickHistoryArray,
-        jax.ops.index[sim.currTick: sim.currTick + 1],
+        jax.ops.index[(startIdx): (startIdx + 1)],
         res[1])
 
       sim.currTick += 1
 
+  if not positionHistoryArrAccum is None:
+    positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
+    tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
+  else:
+    positionHistoryArrAccum = positionHistoryArr
+    tickHistoryArrayAccum = tickHistoryArray
+  posHistoryDf = get_df_posHistoryArr(positionHistoryArrAccum, posHistoryDf)
+  tickHistoryDf = get_df_tickHistoryArr(tickHistoryArrayAccum, tickHistoryDf)
   print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
   with open(input_mol + '.csv', mode='w') as molInfo:
@@ -956,54 +1020,47 @@ def Main(
         molWriter.writerow([atomMap[i]])
 
   with open(input_mol + '_positionHistory.csv', mode='w') as posHistory:
-    df = pd.DataFrame(data = positionHistoryArr, columns=["time", "atomId", "posX", "posY", "posZ"]) \
-      .astype({"atomId": "int16"})
-
-    df.to_csv(posHistory)
+    posHistoryDf.to_csv(posHistory)
 
   ####################
   # prints csv files #
   ####################
 
-  tickHistDf = pd.DataFrame(
-    data = tickHistoryArray,
-    columns = ["time", "potentialE", "kineticE", "CC_Bonds", "CH_Bonds"])
-
   with open(input_mol + '_energyHistory.csv', mode='w') as energyHistory:
-    tickHistDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
+    tickHistoryDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
 
   with open(input_mol + '_bondLengthHistory.csv', mode='w') as bondLengthHistory:
-    tickHistDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
+    tickHistoryDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
   ############################
   # prints full energy plot #
   ############################
 
-  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
+  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
 
   #################################
   # prints Q1 of full energy plot #
   #################################
 
-  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
+  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
 
   #################################
   # prints Q4 of full energy plot #
   #################################
 
-  draw_energy(tickHistDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
+  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
 
   ###########################
   # prints bond length plot #
   ###########################
 
-  draw_bond(tickHistDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
+  draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
 
   ################################
   # prints bond length histogram #
   ################################
 
-  draw_bond_histogram(tickHistDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
+  draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
 
 def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
     dataLen = energyHistory["time"].count()
