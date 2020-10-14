@@ -786,8 +786,6 @@ def Main(
 
   sim = mol(molecule, dt, randomize)
 
-  sim.record_j(sim.t, sim.posMatrix, sim.velMatrix)
-
   start_time = time.perf_counter()
 
   pos = sim.posMatrix
@@ -807,12 +805,6 @@ def Main(
 
   posHistoryDf = None
   tickHistoryDf = None
-  positionHistoryArr = None
-  tickHistoryArray = None
-  positionHistoryArrAccum = None
-  tickHistoryArrayAccum = None
-  accum = 0
-  arrBatch = 1000
 
   i = 0
   while not stabilized:
@@ -827,58 +819,92 @@ def Main(
       else:
         stabilized = True
 
-  for i in range(0, totalTicks + 1, scale):
-    (accel, vel, pos) = sim.update_loop_j(scale, (accel, vel, pos))
+  ranges = getRecordingRanges(totalTicks, 10_000_000, scale)
+  pctDenominator = int(totalTicks / (100 * scale))
+  lastPct = 0
 
-    sim.t += sim.dt * time_unit * scale
+  for rngIdx in range(0, len(ranges), 2):
+    rows = ranges[rngIdx].stop - ranges[rngIdx].start
+    currTick = 0
+    positionHistoryArr = None
+    tickHistoryArray = None
+    positionHistoryArrAccum = None
+    tickHistoryArrayAccum = None
+    accum = 0
+    arrBatch = 1000
 
-    if int(i / scale) % int(totalTicks / (100 * scale)) == 0:
-      print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
+    for i in ranges[rngIdx]:
+      (accel, vel, pos) = sim.update_loop_j(scale, (accel, vel, pos))
 
-    res = sim.record_j(sim.t, pos, vel)
+      sim.t += sim.dt * time_unit * scale
 
-    # time (s), position (Å)
+      if int(i / scale) / pctDenominator > lastPct:
+        print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
+        lastPct = math.ceil(int(i / scale) / pctDenominator)
 
-    if int(i / scale) % arrBatch == 0:
-      if not positionHistoryArr is None:
-        if not positionHistoryArrAccum is None:
-          positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
-          tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
-        else:
-          positionHistoryArrAccum = positionHistoryArr
-          tickHistoryArrayAccum = tickHistoryArray
-        accum += arrBatch
+      res = sim.record_j(sim.t, pos, vel)
 
-      arrRows = min(rows, arrBatch)
-      positionHistoryArr = np.empty([arrRows * natoms,5])
-      tickHistoryArray = np.empty([arrRows,5])
-      rows -= arrBatch
+      # time (s), position (Å)
 
-    startIdx = (sim.currTick - accum)
+      if int(i / scale) % arrBatch == 0:
+        if not positionHistoryArr is None:
+          if not positionHistoryArrAccum is None:
+            positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
+            tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
+          else:
+            positionHistoryArrAccum = positionHistoryArr
+            tickHistoryArrayAccum = tickHistoryArray
+          accum += arrBatch
 
-    positionHistoryArr = jax.ops.index_update(
-      positionHistoryArr,
-      jax.ops.index[(startIdx * natoms):(startIdx * natoms + natoms)],
-      res[0])
+        arrRows = min(rows, arrBatch)
+        positionHistoryArr = np.empty([arrRows * natoms,5])
+        tickHistoryArray = np.empty([arrRows,5])
+        rows -= arrBatch
 
-    # time (ps), energy (fJ), bond lengths (Å)
+      startIdx = (currTick - accum)
 
-    tickHistoryArray = jax.ops.index_update(
-      tickHistoryArray,
-      jax.ops.index[(startIdx): (startIdx + 1)],
-      res[1])
+      positionHistoryArr = jax.ops.index_update(
+        positionHistoryArr,
+        jax.ops.index[(startIdx * natoms):(startIdx * natoms + natoms)],
+        res[0])
 
-    sim.currTick += 1
+      # time (ps), energy (zJ), bond lengths (Å)
 
-  if not positionHistoryArrAccum is None:
-    positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
-    tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
-  else:
-    positionHistoryArrAccum = positionHistoryArr
-    tickHistoryArrayAccum = tickHistoryArray
+      tickHistoryArray = jax.ops.index_update(
+        tickHistoryArray,
+        jax.ops.index[(startIdx): (startIdx + 1)],
+        res[1])
 
-  posHistoryDf = get_df_posHistoryArr(positionHistoryArrAccum, posHistoryDf)
-  tickHistoryDf = get_df_tickHistoryArr(tickHistoryArrayAccum, tickHistoryDf)
+      sim.currTick += 1
+      currTick += 1
+
+    if not positionHistoryArrAccum is None:
+      positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
+      tickHistoryArrayAccum = np.append(tickHistoryArrayAccum, tickHistoryArray, axis = 0)
+    else:
+      positionHistoryArrAccum = positionHistoryArr
+      tickHistoryArrayAccum = tickHistoryArray
+
+    posHistoryDf = get_df_posHistoryArr(positionHistoryArrAccum, posHistoryDf)
+    tickHistoryDf = get_df_tickHistoryArr(tickHistoryArrayAccum, tickHistoryDf)
+
+    #Skip Recordings
+    if rngIdx + 1 < len(ranges):
+      curRng = ranges[rngIdx + 1]
+      firstPercentTick = int(curRng.start / scale) / pctDenominator
+      lastPercentTick = int(curRng.stop / scale) / pctDenominator
+
+      step = int(int((curRng.stop - curRng.start) / (lastPercentTick - firstPercentTick)))
+
+      for i in range(curRng.start, curRng.stop, step):
+        (accel, vel, pos) = sim.update_loop_j(step, (accel, vel, pos))
+
+        sim.t += sim.dt * time_unit * step
+
+        if int(i / scale) / pctDenominator > lastPct:
+          print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
+          lastPct = math.ceil(int(i / scale) / pctDenominator)
+        sim.currTick += step / scale
 
   print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
@@ -912,35 +938,36 @@ def Main(
   with open(input_mol + '_bondLengthHistory.csv', mode='w') as bondLengthHistory:
     tickHistoryDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
-  ############################
-  # prints full energy plot #
-  ############################
+  if len(ranges) == 1:
+    ############################
+    # prints full energy plot #
+    ############################
 
-  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
 
-  #################################
-  # prints Q1 of full energy plot #
-  #################################
+    #################################
+    # prints Q1 of full energy plot #
+    #################################
 
-  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
 
-  #################################
-  # prints Q4 of full energy plot #
-  #################################
+    #################################
+    # prints Q4 of full energy plot #
+    #################################
 
-  draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
 
-  ###########################
-  # prints bond length plot #
-  ###########################
+    ###########################
+    # prints bond length plot #
+    ###########################
 
-  draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
+    draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
 
-  ################################
-  # prints bond length histogram #
-  ################################
+    ################################
+    # prints bond length histogram #
+    ################################
 
-  draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
+    draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
 
 def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
     dataLen = energyHistory["time"].count()
@@ -949,7 +976,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), 250), 5))
+    plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), 600), 5))
     plt.rc('font', **font)
     plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng], label = 'Potential', s = 2.5)
     plt.scatter(energyHistory["time"][rng], energyHistory["kineticE"][rng], label = 'Kinetic', s = 2.5)
@@ -974,7 +1001,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), 250), 5))
+    plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), 600), 5))
     plt.rc('font', **font)
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.455, 1.455], color = 'blue', linestyle = ':')
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.099, 1.099], color = 'orange', linestyle = ':')
@@ -1023,13 +1050,40 @@ def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binW
     else:
         plt.savefig(out_file)
 
+def getRecordingRanges(totalTicks, recordingTicks, scale):
+  totalTicks = int((totalTicks + scale - 1) / scale) * scale
+  recordingTicks = int((recordingTicks + scale - 1) / scale) * scale
+
+  if totalTicks < recordingTicks * 10:
+    return [range(0, totalTicks + 1, scale)]
+
+  stop1 = recordingTicks
+  stop2 = int((int(totalTicks * .25 - recordingTicks / 2)) / scale) * scale
+  stop3 = stop2 + recordingTicks
+  stop4 = int((int(totalTicks * .5 - recordingTicks / 2)) / scale) * scale
+  stop5 = stop4 + recordingTicks
+  stop6 = int((int(totalTicks * .75 - recordingTicks / 2)) / scale) * scale
+  stop7 = stop6 + recordingTicks
+  stop8 = totalTicks - 2 * recordingTicks
+  stop9 = stop8 + recordingTicks
+
+  return [range(0,stop1, scale),
+    range(stop1, stop2, scale),
+    range(stop2, stop3, scale),
+    range(stop3, stop4, scale),
+    range(stop4, stop5, scale),
+    range(stop5, stop6, scale),
+    range(stop6, stop7, scale),
+    range(stop7, stop9, scale),
+    range(stop8, stop9, scale)]
+
 parser = ap.ArgumentParser(description="Simulate one of following molecules: ethane, propane, isobutane, benzene")
 parser.add_argument('molecule', help = "molecule name")
 parser.add_argument('--dt', type=float, dest='dt', default = 1e-18, help = "size of timestep (default: 1e-18")
 parser.add_argument('--randomize_const', type=float, dest='randomize_const', default = 0.05, help = "amount of randomization in initial positions, 0 for no randomization (default: 0.05)")
 parser.add_argument('--iterations', type=int, dest = 'iterations', default= 10_000, help = 'number of iterations (default: 10,000)')
 parser.add_argument('--scale', type=int, dest = 'scale', default=100, help = 'create output per scale iteration (default: 100)')
-parser.add_argument('--stablization_const', type=float, dest = 'stablization_const', default=0.1, help = 'molecule will be frozen until kinetic_E>potential_E*stablization_const (default: 0.1)')
+parser.add_argument('--stablization_const', type=float, dest = 'stablization_const', default=0, help = 'molecule will be frozen until kinetic_E>potential_E*stablization_const (default: 0)')
 
 if __name__ == "__main__":
   args = parser.parse_args()
