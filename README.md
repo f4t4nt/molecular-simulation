@@ -1,7 +1,8 @@
 # MolSim
-Simulating Hydrocarbon Dynamics With Consistent Force Field Method
 
 We developed a program to simulate the dynamics of hydrocarbon molecules using the consistent force field method devised by Shneior Lifson and Arieh Warshel.
+
+# File Descriptions
 
 mol_display.py produces the CSV files used to create graphs and animations of the molecule dynamics.
 
