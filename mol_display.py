@@ -1,6 +1,16 @@
+import argparse as ap
 import csv
+import os
 import time as time
 import vpython as vp
+
+parser = ap.ArgumentParser(description = "Play back a molecule simulated by mol_simulation.py")
+parser.add_argument('molecule', help = "molecule name (must match an output/<molecule> directory produced by mol_simulation.py)")
+args = parser.parse_args()
+
+output_dir = os.path.join('output', args.molecule)
+mol_info_path = os.path.join(output_dir, args.molecule + '.csv')
+position_history_path = os.path.join(output_dir, args.molecule + '_positionHistory.csv')
 
 atoms = []
 bonds = []
@@ -17,7 +27,7 @@ scene = vp.canvas(background = vp.vec(0, 0, 0), width = 2000, height = 1000)
 
 readPhase = 0
 
-with open('moleculeInformation.csv', newline = '') as molInfo:
+with open(mol_info_path, newline = '') as molInfo:
     molReader = csv.reader(molInfo, delimiter = ',', quotechar = '"')
 
     for row in molReader:
@@ -74,7 +84,7 @@ with open('moleculeInformation.csv', newline = '') as molInfo:
 
 contentLine = False
 
-with open('positionHistory.csv', newline = '') as posHistory:
+with open(position_history_path, newline = '') as posHistory:
     posReader = csv.reader(posHistory, delimiter = ',', quotechar = '"')
 
     for row in posReader:

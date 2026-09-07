@@ -5,6 +5,7 @@ import jax as jax
 import jax.numpy as np
 import math as math
 import matplotlib.pyplot as plt
+import os
 import pandas as pd
 import random as rand
 import time as time
@@ -754,7 +755,7 @@ def get_df_posHistoryArr(positionHistoryArr, df):
   if df is None:
     return df2
 
-  return df.append(df2)
+  return pd.concat([df, df2])
 
 def get_df_tickHistoryArr(tickHistoryArray, df):
   tickHistDf = pd.DataFrame(
@@ -764,7 +765,7 @@ def get_df_tickHistoryArr(tickHistoryArray, df):
   if df is None:
     return tickHistDf
   
-  return df.append(tickHistDf)
+  return pd.concat([df, tickHistDf])
 
 
 def Main(
@@ -778,6 +779,10 @@ def Main(
   molecule = molecules[input_mol]
   dt = input_dt / time_unit
   randomize = input_randomize_const
+
+  output_dir = os.path.join('output', input_mol)
+  os.makedirs(output_dir, exist_ok = True)
+  out_path = lambda name: os.path.join(output_dir, name)
 
   print("--- 0 seconds ---")
 
@@ -860,17 +865,15 @@ def Main(
 
       startIdx = (currTick - accum)
 
-      positionHistoryArr = jax.ops.index_update(
-        positionHistoryArr,
-        jax.ops.index[(startIdx * natoms):(startIdx * natoms + natoms)],
-        res[0])
+      positionHistoryArr = positionHistoryArr.at[
+        (startIdx * natoms):(startIdx * natoms + natoms)
+      ].set(res[0])
 
       # time (ps), energy (zJ), bond lengths (Å)
 
-      tickHistoryArray = jax.ops.index_update(
-        tickHistoryArray,
-        jax.ops.index[(startIdx): (startIdx + 1)],
-        res[1])
+      tickHistoryArray = tickHistoryArray.at[
+        (startIdx): (startIdx + 1)
+      ].set(res[1])
 
       sim.currTick += 1
       currTick += 1
@@ -905,7 +908,7 @@ def Main(
 
   print("--- %s seconds ---" % (time.perf_counter() - start_time))
 
-  with open(input_mol + '.csv', mode='w') as molInfo:
+  with open(out_path(input_mol + '.csv'), mode='w') as molInfo:
     molWriter = csv.writer(molInfo, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     molWriter.writerow([len(molecule)])
     molWriter.writerow([scale])
@@ -922,17 +925,17 @@ def Main(
       for i in v['Neighbors']:
         molWriter.writerow([atomMap[i]])
 
-  with open(input_mol + '_positionHistory.csv', mode='w') as posHistory:
+  with open(out_path(input_mol + '_positionHistory.csv'), mode='w') as posHistory:
     posHistoryDf.to_csv(posHistory)
 
   ####################
   # prints csv files #
   ####################
 
-  with open(input_mol + '_energyHistory.csv', mode='w') as energyHistory:
+  with open(out_path(input_mol + '_energyHistory.csv'), mode='w') as energyHistory:
     tickHistoryDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
 
-  with open(input_mol + '_bondLengthHistory.csv', mode='w') as bondLengthHistory:
+  with open(out_path(input_mol + '_bondLengthHistory.csv'), mode='w') as bondLengthHistory:
     tickHistoryDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
   if len(ranges) == 1:
@@ -940,31 +943,31 @@ def Main(
     # prints full energy plot #
     ############################
 
-    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_energyPlot.png')
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_energyPlot.png'))
 
     #################################
     # prints Q1 of full energy plot #
     #################################
 
-    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, input_mol + '_energyPlotQ1.png', " (Q1)")
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, out_path(input_mol + '_energyPlotQ1.png'), " (Q1)")
 
     #################################
     # prints Q4 of full energy plot #
     #################################
 
-    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, input_mol + '_energyPlotQ4.png', " (Q4)")
+    draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, out_path(input_mol + '_energyPlotQ4.png'), " (Q4)")
 
     ###########################
     # prints bond length plot #
     ###########################
 
-    draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, input_mol + '_bondLengthPlot.png')
+    draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_bondLengthPlot.png'))
 
     ################################
     # prints bond length histogram #
     ################################
 
-    draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, input_mol + '_bondLengthHist.png')
+    draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, out_path(input_mol + '_bondLengthHist.png'))
 
 def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
     dataLen = energyHistory["time"].count()
