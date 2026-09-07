@@ -2,6 +2,12 @@
 
 We developed a program to simulate the dynamics of hydrocarbon molecules using the consistent force field method devised by Shneior Lifson and Arieh Warshel.
 
+# Setup
+
+```
+pip install -r requirements.txt
+```
+
 # File Descriptions
 
 `mol_simulation.py` produces the CSV files used to create graphs and animations of the molecule dynamics.

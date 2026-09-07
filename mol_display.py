@@ -1,8 +1,6 @@
-from collections import namedtuple
 import csv
 import time as time
 import vpython as vp
-import numpy as np
 
 atoms = []
 bonds = []

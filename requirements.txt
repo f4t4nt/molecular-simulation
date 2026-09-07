@@ -1,0 +1,8 @@
+# mol_simulation.py
+jax
+jaxlib
+matplotlib
+pandas
+
+# mol_display.py (3D playback of simulation output)
+vpython
