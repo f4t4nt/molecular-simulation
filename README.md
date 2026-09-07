@@ -8,6 +8,12 @@ We developed a program to simulate the dynamics of hydrocarbon molecules using t
 pip install -r requirements.txt
 ```
 
+JAX runs on CPU by default. If you have an NVIDIA GPU, you can install CUDA support instead for faster runs:
+
+```
+pip install "jax[cuda12]"
+```
+
 # File Descriptions
 
 `mol_simulation.py` runs the simulation for one of `ethane`, `propane`, `isobutane`, or `benzene` and writes its output (topology, energy/bond history, plots) to `output/<molecule>/`, e.g.:

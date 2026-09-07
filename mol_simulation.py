@@ -69,7 +69,7 @@ def Main(
   lastPct = 0
 
   for rngIdx in range(0, len(ranges), 2):
-    rows = ranges[rngIdx].stop - ranges[rngIdx].start
+    rows = len(ranges[rngIdx])
     currTick = 0
     positionHistoryArr = None
     tickHistoryArray = None
