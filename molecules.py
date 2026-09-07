@@ -195,36 +195,45 @@ isobutane = {
 
 molecules["isobutane"] = isobutane
 
+# ring carbons are sp2/aromatic, not sp3 like the alkanes above, so they get
+# different bond/angle constants (see constants.py's *_aromatic values)
+
 benzene = {
   "C1" : {
     "Type" : atoms.C,
     "Neighbors" : ["C2", "C6", "H7"],
-    "Position" : np.array([0, 1.397, 0])
+    "Position" : np.array([0, 1.397, 0]),
+    "Aromatic" : True
   },
   "C2" : {
     "Type" : atoms.C,
     "Neighbors" : ["C1", "C3", "H8"],
-    "Position" : np.array([1.2098, 0.6985, 0])
+    "Position" : np.array([1.2098, 0.6985, 0]),
+    "Aromatic" : True
   },
   "C3" : {
     "Type" : atoms.C,
     "Neighbors" : ["C2", "C4", "H9"],
-    "Position" : np.array([1.2098, -0.6985, 0])
+    "Position" : np.array([1.2098, -0.6985, 0]),
+    "Aromatic" : True
   },
   "C4" : {
     "Type" : atoms.C,
     "Neighbors" : ["C3", "C5", "H10"],
-    "Position" : np.array([0, -1.397, 0])
+    "Position" : np.array([0, -1.397, 0]),
+    "Aromatic" : True
   },
   "C5" : {
     "Type" : atoms.C,
     "Neighbors" : ["C4", "C6", "H11"],
-    "Position" : np.array([-1.2098, -0.6985, 0])
+    "Position" : np.array([-1.2098, -0.6985, 0]),
+    "Aromatic" : True
   },
   "C6" : {
     "Type" : atoms.C,
     "Neighbors" : ["C5", "C1", "H12"],
-    "Position" : np.array([-1.2098, 0.6985, 0])
+    "Position" : np.array([-1.2098, 0.6985, 0]),
+    "Aromatic" : True
   },
   "H7" : {
     "Type" : atoms.H,

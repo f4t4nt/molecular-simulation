@@ -18,6 +18,15 @@ K_hch = 76.28
 K_cch = 44.
 K_ccTorsional = 2.836
 
+# aromatic (e.g. benzene ring) variants: sp2/trigonal-planar carbons have a
+# stiffer, shorter C-C bond and a ~120 deg (vs. ~109.5-111 deg sp3) bond
+# angle, so the alkane constants above don't apply to them.
+# sourced from AMBER GAFF (ca-ca / ca-ca-ca / ca-ca-ha), doubled from GAFF's
+# E=K(r-r0)^2 convention to match this file's E=0.5*K(r-r0)^2 convention.
+K_cc_aromatic = 922.2
+K_ccc_aromatic = 133.2
+K_cch_aromatic = 96.4
+
 # Avogadro's number
 
 N = 6.0221409e+23
@@ -39,6 +48,12 @@ X_ccc = 1.937
 X_hch = 1.911
 X_cch = 1.911
 
+# Å
+# rad (120.02 deg, 119.88 deg)
+X_cc_aromatic = 1.3984 * A2m
+X_ccc_aromatic = 2.094744168243594
+X_cch_aromatic = 2.092300707290802
+
 # distance-energy conversion constants
 # angle-energy conversion constants
 
@@ -48,6 +63,10 @@ angleEnergyK_ccc = K_ccc * kcal2MU / N
 angleEnergyK_hch = K_hch * kcal2MU / N
 angleEnergyK_cch = K_cch * kcal2MU / N
 angleEnergyK_ccTorsional = K_ccTorsional * kcal2MU / N
+
+distEnergyK_cc_aromatic = K_cc_aromatic * kcal2MU / (N * A2m ** 2)
+angleEnergyK_ccc_aromatic = K_ccc_aromatic * kcal2MU / N
+angleEnergyK_cch_aromatic = K_cch_aromatic * kcal2MU / N
 
 # jit/vmap switch
 

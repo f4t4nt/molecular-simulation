@@ -7,19 +7,25 @@ from constants import (
   A2m,
   amu2kg,
   angleEnergyK_ccc,
+  angleEnergyK_ccc_aromatic,
   angleEnergyK_cch,
+  angleEnergyK_cch_aromatic,
   angleEnergyK_ccTorsional,
   angleEnergyK_hch,
   dist_unit,
   distEnergyK_cc,
+  distEnergyK_cc_aromatic,
   distEnergyK_ch,
   jit_funcs,
   mass_unit,
   time_unit,
   vmap_funcs,
   X_cc,
+  X_cc_aromatic,
   X_cch,
+  X_cch_aromatic,
   X_ccc,
+  X_ccc_aromatic,
   X_ch,
   X_hch,
 )
@@ -62,21 +68,28 @@ class mol:
           continue
 
         self.pairs.append(
-          (i, j, v["Type"], self.atoms[atom]["Type"])
+          (i, j, v["Type"], self.atoms[atom]["Type"],
+            v.get("Aromatic", False) and self.atoms[atom].get("Aromatic", False))
         )
 
-    self.ccPairs = np.array([np.array([t[0], t[1]]) for t in self.pairs if t[2] == atoms.C and t[3] == atoms.C])
+    self.ccPairs = np.array([np.array([t[0], t[1]]) for t in self.pairs if t[2] == atoms.C and t[3] == atoms.C and not t[4]])
+    self.ccAromaticPairs = np.array([np.array([t[0], t[1]]) for t in self.pairs if t[2] == atoms.C and t[3] == atoms.C and t[4]])
     self.chPairs = np.array([np.array([t[0], t[1]]) for t in self.pairs if (t[2] == atoms.H and t[3] == atoms.C) or (t[2] == atoms.C and t[3] == atoms.H)])
 
     if len(self.ccPairs) == 0:
       self.ccPairs = np.full((0, 2), 0)
 
+    if len(self.ccAromaticPairs) == 0:
+      self.ccAromaticPairs = np.full((0, 2), 0)
+
     if len(self.chPairs) == 0:
       self.chPairs = np.full((0, 2), 0)
 
-    self.atomPairs = np.concatenate((self.ccPairs, self.chPairs), axis = 0)
+    self.allCcPairs = np.concatenate((self.ccPairs, self.ccAromaticPairs), axis = 0)
+    self.atomPairs = np.concatenate((self.ccPairs, self.ccAromaticPairs, self.chPairs), axis = 0)
     self.pairEnergyConstants = np.concatenate((
       np.full((1, len(self.ccPairs)), distEnergyK_cc),
+      np.full((1, len(self.ccAromaticPairs)), distEnergyK_cc_aromatic),
       np.full((1, len(self.chPairs)), distEnergyK_ch)),
       axis = 1)
 
@@ -90,20 +103,27 @@ class mol:
       if v["Type"] != atoms.C:
         continue
 
+      isAromatic = v.get("Aromatic", False)
       neighbors = v["Neighbors"]
       for j in range(len(neighbors)):
         for m in range(j + 1, len(neighbors)):
           self.triples.append(
-            np.array([self.atomMap[neighbors[j]], i, self.atomMap[neighbors[m]]])
+            (self.atomMap[neighbors[j]], i, self.atomMap[neighbors[m]], isAromatic)
           )
 
-    self.cccTriples = np.array([t for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.C])
-    self.hchTriples = np.array([t for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.H])
-    self.cchTriples = np.array([t for t in self.triples if (self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.C) \
-      or (self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.H)])
+    self.cccTriples = np.array([[t[0], t[1], t[2]] for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.C and not t[3]])
+    self.cccAromaticTriples = np.array([[t[0], t[1], t[2]] for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.C and t[3]])
+    self.hchTriples = np.array([[t[0], t[1], t[2]] for t in self.triples if self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.H])
+    self.cchTriples = np.array([[t[0], t[1], t[2]] for t in self.triples if ((self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.C) \
+      or (self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.H)) and not t[3]])
+    self.cchAromaticTriples = np.array([[t[0], t[1], t[2]] for t in self.triples if ((self.atomArray[t[0]][1]["Type"] == atoms.H and self.atomArray[t[2]][1]["Type"] == atoms.C) \
+      or (self.atomArray[t[0]][1]["Type"] == atoms.C and self.atomArray[t[2]][1]["Type"] == atoms.H)) and t[3]])
 
     if len(self.cccTriples) == 0:
       self.cccTriples = np.full((0, 3), 0)
+
+    if len(self.cccAromaticTriples) == 0:
+      self.cccAromaticTriples = np.full((0, 3), 0)
 
     if len(self.hchTriples) == 0:
       self.hchTriples = np.full((0, 3), 0)
@@ -111,11 +131,16 @@ class mol:
     if len(self.cchTriples) == 0:
       self.cchTriples = np.full((0, 3), 0)
 
-    self.atomTriples = np.concatenate((self.cccTriples, self.hchTriples, self.cchTriples), axis = 0)
+    if len(self.cchAromaticTriples) == 0:
+      self.cchAromaticTriples = np.full((0, 3), 0)
+
+    self.atomTriples = np.concatenate((self.cccTriples, self.cccAromaticTriples, self.hchTriples, self.cchTriples, self.cchAromaticTriples), axis = 0)
     self.triplesAngleEneryConstants = np.concatenate((
       np.full((1, len(self.cccTriples)), angleEnergyK_ccc),
+      np.full((1, len(self.cccAromaticTriples)), angleEnergyK_ccc_aromatic),
       np.full((1, len(self.hchTriples)), angleEnergyK_hch),
-      np.full((1, len(self.cchTriples)), angleEnergyK_cch)),
+      np.full((1, len(self.cchTriples)), angleEnergyK_cch),
+      np.full((1, len(self.cchAromaticTriples)), angleEnergyK_cch_aromatic)),
       axis = 1)
 
   ###############################
@@ -124,7 +149,7 @@ class mol:
 
   def initQuads(self):
     self.quads = []
-    for pair in self.ccPairs:
+    for pair in self.allCcPairs:
       for left in self.atomArray[pair[0]][1]["Neighbors"]:
         if self.atomMap[left] == pair[1]:
           continue
@@ -183,13 +208,16 @@ class mol:
     self.currTick = 0
 
     self.M_cc = np.zeros((len(self.ccPairs), 1)) + X_cc
+    self.M_cc_aromatic = np.zeros((len(self.ccAromaticPairs), 1)) + X_cc_aromatic
     self.M_ch = np.zeros((len(self.chPairs), 1)) + X_ch
     self.M_ccc = np.zeros((len(self.cccTriples), 1)) + X_ccc
+    self.M_ccc_aromatic = np.zeros((len(self.cccAromaticTriples), 1)) + X_ccc_aromatic
     self.M_hch = np.zeros((len(self.hchTriples), 1)) + X_hch
     self.M_cch = np.zeros((len(self.cchTriples), 1)) + X_cch
+    self.M_cch_aromatic = np.zeros((len(self.cchAromaticTriples), 1)) + X_cch_aromatic
 
-    self.M_pairs = np.concatenate((self.M_cc, self.M_ch), axis = 0).squeeze()
-    self.M_triples = np.concatenate((self.M_ccc, self.M_hch, self.M_cch), axis = 0).squeeze()
+    self.M_pairs = np.concatenate((self.M_cc, self.M_cc_aromatic, self.M_ch), axis = 0).squeeze()
+    self.M_triples = np.concatenate((self.M_ccc, self.M_ccc_aromatic, self.M_hch, self.M_cch, self.M_cch_aromatic), axis = 0).squeeze()
 
   def vmap(self, f, in_axes):
     return jax.vmap(f, in_axes)
@@ -430,7 +458,7 @@ class mol:
   def record(self, use_v):
     calcEnergy = self.calcEnergy_(use_v)
     distance = self.distance_v if use_v else self.distance_(False)
-    ccPairs = self.ccPairs
+    ccPairs = self.allCcPairs
     chPairs = self.chPairs
     atoms = len(self.atomArray)
     idx = np.array([range(atoms)]).transpose()
