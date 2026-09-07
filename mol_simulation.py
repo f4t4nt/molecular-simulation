@@ -131,7 +131,7 @@ def Main(
     posHistoryDf = get_df_posHistoryArr(positionHistoryArrAccum, posHistoryDf)
     tickHistoryDf = get_df_tickHistoryArr(tickHistoryArrayAccum, tickHistoryDf)
 
-    #Skip Recordings
+    # fast-forward to the next sampled range without recording history
     if rngIdx + 1 < len(ranges):
       curRng = ranges[rngIdx + 1]
       firstPercentTick = int(curRng.start / scale) / pctDenominator
@@ -171,10 +171,6 @@ def Main(
   with open(out_path(input_mol + '_positionHistory.csv'), mode='w') as posHistory:
     posHistoryDf.to_csv(posHistory)
 
-  ####################
-  # prints csv files #
-  ####################
-
   with open(out_path(input_mol + '_energyHistory.csv'), mode='w') as energyHistory:
     tickHistoryDf[["time", "potentialE", "kineticE"]].to_csv(energyHistory)
 
@@ -182,34 +178,10 @@ def Main(
     tickHistoryDf[["time", "CC_Bonds", "CH_Bonds"]].to_csv(bondLengthHistory)
 
   if len(ranges) == 1:
-    ############################
-    # prints full energy plot #
-    ############################
-
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_energyPlot.png'))
-
-    #################################
-    # prints Q1 of full energy plot #
-    #################################
-
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, out_path(input_mol + '_energyPlotQ1.png'), " (Q1)")
-
-    #################################
-    # prints Q4 of full energy plot #
-    #################################
-
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, out_path(input_mol + '_energyPlotQ4.png'), " (Q4)")
-
-    ###########################
-    # prints bond length plot #
-    ###########################
-
     draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_bondLengthPlot.png'))
-
-    ################################
-    # prints bond length histogram #
-    ################################
-
     draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, out_path(input_mol + '_bondLengthHist.png'))
 
 def getRecordingRanges(totalTicks, recordingTicks, scale):

@@ -44,20 +44,12 @@ class mol:
     self.initMatrices()
     self.initJax()
 
-  ########################################################
-  # reads bond relations and converts to readable format #
-  ########################################################
-
   def initAtomArrays(self):
     self.atomArray = []
     self.atomMap = {}
     for i, (k, v) in enumerate(self.atoms.items()):
       self.atomArray.append((k, v))
       self.atomMap[k] = i
-
-  #################################
-  # creates array of CC, CH pairs #
-  #################################
 
   def initPairs(self):
     self.pairs = []
@@ -92,10 +84,6 @@ class mol:
       np.full((1, len(self.ccAromaticPairs)), distEnergyK_cc_aromatic),
       np.full((1, len(self.chPairs)), distEnergyK_ch)),
       axis = 1)
-
-  ##########################################
-  # creates array of CCC, HCH, CCH triples #
-  ##########################################
 
   def initTriples(self):
     self.triples = []
@@ -143,10 +131,6 @@ class mol:
       np.full((1, len(self.cchAromaticTriples)), angleEnergyK_cch_aromatic)),
       axis = 1)
 
-  ###############################
-  # creates array of _CC_ quads #
-  ###############################
-
   def initQuads(self):
     self.quads = []
     for pair in self.allCcPairs:
@@ -164,10 +148,6 @@ class mol:
 
     self.quads = np.array(self.quads)
 
-  #####################################################################
-  # creates random displacement matrix to offset predefined positions #
-  #####################################################################
-
   def initRandMatrix(self):
     firstLine = True
 
@@ -184,10 +164,6 @@ class mol:
         self.randMatrix = np.array(randVector)
         firstLine = False
 
-  #############################
-  # creates variable matrices #
-  #############################
-
   def initMatrices(self):
     # angstroms
     self.posMatrix = np.array([([pos * A2m for pos in atom[1]["Position"]]) for atom in self.atomArray]) + self.randMatrix
@@ -198,7 +174,7 @@ class mol:
     self.prevAccelMatrix = np.zeros((len(self.atomArray), 3))
     # newtons
     self.forceMatrix = np.zeros((len(self.atomArray), 3))
-    # atomc masses
+    # atomic masses
     self.massMatrix = np.array([atom[1]["Type"].value * amu2kg for atom in self.atomArray])
     # joules
     self.potential = 0
@@ -238,10 +214,6 @@ class mol:
     self.record_j = self.jit(self.record(vmap_funcs))
     self.update_loop_j = self.jit(self.update_loop(vmap_funcs))
 
-  ########################################
-  # calculates length AB given positions #
-  ########################################
-
   def distance_(self, use_v):
     def v(P):
       p0 = P[0]
@@ -260,10 +232,6 @@ class mol:
       return r_mag
 
     return v if use_v else n
-
-  ##################################################
-  # calculates cosine of angle ABC given positions #
-  ##################################################
 
   def cosAngle_(self, P):
     p0 = P[0]
@@ -289,20 +257,12 @@ class mol:
     r2_mag = np.sqrt(np.sum(np.square(r2), axis = 1))
     return dot / (r1_mag * r2_mag)
 
-  ########################################
-  # calculates angle ABC given positions #
-  ########################################
-
   def angle_(self, use_v):
     cosAngle = self.cosAngle_ if use_v else self.cosAngle
     def angle(P):
       return np.arccos(cosAngle(P))
 
     return angle
-
-  ###################################################
-  # calculates torsional angle ABCD given positions #
-  ###################################################
 
   def torsionVecs_(self, P):
       p0 = P[0]
@@ -342,10 +302,6 @@ class mol:
       return cosAngle(torsionVecs(P))
 
     return internal
-
-  ###########################################################
-  # calculates potential energy of molecule given positions #
-  ##########################################################
 
   def getCalcPotential(self, use_v):
     atomPairs = self.atomPairs
@@ -403,10 +359,6 @@ class mol:
 
     return internal
 
-  ###########################
-  # calculates force matrix #
-  ###########################
-
   def calcForce(self, use_v):
     gradient = jax.grad(self.getCalcPotential(use_v))
     def internal(P):
@@ -415,11 +367,7 @@ class mol:
     return internal
 
   def accelAtom_(self, M, F):
-    return F / M # / self.amu2kg
-
-  #############################################################################
-  # calculates velocity matrix of single atom given velocity and acceleration #
-  #############################################################################
+    return F / M
 
   def updatePosition(self, P, V, A, pA, dt):
     # using dA improves speed/accuracy of simulation (3rd degree taylor series)

@@ -4,10 +4,6 @@ time_unit = 1e-12
 dist_unit = 1e-10
 mass_unit = 1e-20
 
-#############
-# CONSTANTS #
-#############
-
 # kcal/Å^2
 # kcal/rad^2
 
