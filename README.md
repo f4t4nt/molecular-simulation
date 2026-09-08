@@ -34,10 +34,7 @@ python mol_display.py ethane
 
 # Links
 
-Paper: [paper.pdf](paper.pdf)
-
-Original consistent force field paper: S. Lifson and A. Warshel, "Consistent Force Field for Calculations of Conformations, Vibrational Spectra, and Enthalpies of Cycloalkane and n-Alkane Molecules," J. Chem. Phys. 49, 5116 (1968). https://doi.org/10.1063/1.1670007
-
-CSV files (7zip or equivalent required to open): https://drive.google.com/file/d/1DCI9PWngpDCOwGWAZNWLLJBHga-x_eFh
-
-YouTube (screen recording of the original VPython viewer): https://youtu.be/iCUkThONkhc
+- Paper: [paper.pdf](paper.pdf)
+- Original consistent force field paper: S. Lifson and A. Warshel, ["Consistent Force Field for Calculations of Conformations, Vibrational Spectra, and Enthalpies of Cycloalkane and n-Alkane Molecules"](https://doi.org/10.1063/1.1670007), J. Chem. Phys. 49, 5116 (1968)
+- CSV files (7zip or equivalent required to open): [Google Drive](https://drive.google.com/file/d/1DCI9PWngpDCOwGWAZNWLLJBHga-x_eFh)
+- Screen recording of the original VPython viewer: [YouTube](https://youtu.be/iCUkThONkhc)
