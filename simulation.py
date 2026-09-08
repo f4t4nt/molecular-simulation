@@ -19,6 +19,7 @@ from constants import (
   angleEnergyK_cch,
   angleEnergyK_cch_aromatic,
   angleEnergyK_ccTorsional,
+  angleEnergyK_ccTorsional_aromatic,
   angleEnergyK_hch,
   dist_unit,
   distEnergyK_cc,
@@ -133,9 +134,9 @@ class mol:
       np.full((1, len(self.cchAromaticTriples)), angleEnergyK_cch_aromatic)),
       axis = 1)
 
-  def initQuads(self):
-    self.quads = []
-    for pair in self.allCcPairs:
+  def buildQuads(self, pairs):
+    quads = []
+    for pair in pairs:
       for left in self.atomArray[pair[0]][1]["Neighbors"]:
         if self.atomMap[left] == pair[1]:
           continue
@@ -144,11 +145,18 @@ class mol:
           if self.atomMap[right] == pair[0]:
             continue
 
-          self.quads.append(
+          quads.append(
             (self.atomMap[left], pair[0], pair[1], self.atomMap[right])
           )
 
-    self.quads = np.array(self.quads)
+    if len(quads) == 0:
+      return np.full((0, 4), 0)
+
+    return np.array(quads)
+
+  def initQuads(self):
+    self.quads = self.buildQuads(self.ccPairs)
+    self.quadsAromatic = self.buildQuads(self.ccAromaticPairs)
 
   def initRandMatrix(self):
     firstLine = True
@@ -212,7 +220,7 @@ class mol:
     self.cosTorsionalAngle_v = self.vmap(self.cosTorsionalAngle_(True), in_axes = (0, ))
     self.accelAtom_v = self.jit(self.vmap(self.accelAtom_, in_axes = (0, 0)))
 
-    self.update_j = self.jit(self.update(vmap_funcs))
+    self.update_j = self.jit(self.update(vmap_funcs))  # unused, equivalent to calling update_loop_j(1, ...) in a Python loop
     self.record_j = self.jit(self.record(vmap_funcs))
     self.update_loop_j = self.jit(self.update_loop(vmap_funcs))
 
@@ -311,6 +319,7 @@ class mol:
     atomTriples = self.atomTriples
     triplesAngleEneryConstants = self.triplesAngleEneryConstants
     quads = self.quads
+    quadsAromatic = self.quadsAromatic
     M_pairs = self.M_pairs
     M_triples = self.M_triples
 
@@ -338,6 +347,14 @@ class mol:
       potential_0 += 0.5 \
         * np.sum(1 + 4 * cosAngle ** 3 - 3 * cosAngle) \
         * angleEnergyK_ccTorsional
+
+      # aromatic ring quads: 2-fold potential with planar (phi=0/180) minima,
+      # via cos(2*phi) = 2*cosAngle^2 - 1, instead of the 3-fold alkane form
+      # above (which has no planar minimum and puckers the ring).
+      cosAngleAromatic = cosTorsionalAngle(pos[quadsAromatic])
+      potential_0 += 0.5 \
+        * np.sum(1 - (2 * cosAngleAromatic ** 2 - 1)) \
+        * angleEnergyK_ccTorsional_aromatic
 
       return potential_0
     return calcPotential_

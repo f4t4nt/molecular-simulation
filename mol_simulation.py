@@ -6,7 +6,7 @@ import time
 
 import jax.numpy as np
 
-from constants import time_unit
+from constants import X_cc, X_cc_aromatic, X_ch, time_unit
 from history import get_df_posHistoryArr, get_df_tickHistoryArr
 from molecules import molecules
 from plotting import draw_bond, draw_bond_histogram, draw_energy
@@ -32,6 +32,12 @@ def Main(
   print("--- 0 seconds ---")
 
   sim = mol(molecule, dt, randomize)
+
+  # aromatic molecules (e.g. benzene) have a shorter equilibrium CC bond
+  # length than alkanes; pick whichever the molecule actually contains for
+  # the plots' reference lines.
+  expected_cc = X_cc_aromatic if len(sim.ccAromaticPairs) > 0 else X_cc
+  expected_ch = X_ch
 
   start_time = time.perf_counter()
 
@@ -72,7 +78,6 @@ def Main(
 
   for rngIdx in range(0, len(ranges), 2):
     rows = len(ranges[rngIdx])
-    currTick = 0
     positionHistoryArr = None
     tickHistoryArray = None
     positionHistoryArrAccum = None
@@ -80,7 +85,7 @@ def Main(
     accum = 0
     arrBatch = 1000
 
-    for i in ranges[rngIdx]:
+    for currTick, i in enumerate(ranges[rngIdx]):
       (accel, vel, pos) = sim.update_loop_j(scale, (accel, vel, pos))
 
       sim.t += sim.dt * time_unit * scale
@@ -121,7 +126,6 @@ def Main(
       ].set(res[1])
 
       sim.currTick += 1
-      currTick += 1
 
     if not positionHistoryArrAccum is None:
       positionHistoryArrAccum = np.append(positionHistoryArrAccum, positionHistoryArr, axis = 0)
@@ -183,8 +187,8 @@ def Main(
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_energyPlot.png'))
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 1, out_path(input_mol + '_energyPlotQ1.png'), " (Q1)")
     draw_energy(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 3, 4, out_path(input_mol + '_energyPlotQ4.png'), " (Q4)")
-    draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, out_path(input_mol + '_bondLengthPlot.png'))
-    draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, out_path(input_mol + '_bondLengthHist.png'))
+    draw_bond(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0, 4, expected_cc, expected_ch, out_path(input_mol + '_bondLengthPlot.png'))
+    draw_bond_histogram(tickHistoryDf, input_mol, input_ticks, dt, time_unit, 0.001, expected_cc, expected_ch, out_path(input_mol + '_bondLengthHist.png'))
 
 def getRecordingRanges(totalTicks, recordingTicks, scale):
   totalTicks = int((totalTicks + scale - 1) / scale) * scale

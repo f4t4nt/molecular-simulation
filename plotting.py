@@ -44,17 +44,17 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
         plt.savefig(out_file)
     plt.close(fig)
 
-def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
+def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, expected_cc, expected_ch, out_file = None, title_suffix = ""):
     dataLen = bondHistory["time"].count()
     font = {'family' : 'DejaVu Sans',
         'size' : min(max(12, dataLen / 750 * (q_end - q_start) / 4), 24)}
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    fig = plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), MAX_FIGURE_WIDTH), 5))
+    fig = plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), MAX_FIGURE_WIDTH), 8))
     plt.rc('font', **font)
-    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.455, 1.455], color = 'blue', linestyle = ':')
-    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.099, 1.099], color = 'orange', linestyle = ':')
+    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [expected_cc, expected_cc], color = 'blue', linestyle = ':')
+    plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [expected_ch, expected_ch], color = 'orange', linestyle = ':')
 
     plt.scatter(bondHistory["time"][rng], bondHistory["CC_Bonds"][rng], label = 'Average CC Bond Length', s = 2.5)
     plt.scatter(bondHistory["time"][rng], bondHistory["CH_Bonds"][rng], label = 'Average CH Bond Length', s = 2.5)
@@ -62,7 +62,10 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
     plt.title("Average " + input_mol.capitalize() + " Bond Lengths for " + str(input_ticks) + " Ticks" + title_suffix + ", dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Time (ps)')
     plt.ylabel('Bond Length (Å)')
-    plt.ylim(bottom=0)
+    dataMin = min(bondHistory["CC_Bonds"][rng].min(), bondHistory["CH_Bonds"][rng].min(), expected_cc, expected_ch)
+    dataMax = max(bondHistory["CC_Bonds"][rng].max(), bondHistory["CH_Bonds"][rng].max(), expected_cc, expected_ch)
+    pad = (dataMax - dataMin) * 0.1
+    plt.ylim(dataMin - pad, dataMax + pad)
     plt.legend(prop = {'size' : min(max(12, dataLen / 1000 * (q_end - q_start) / 4), 24)}, markerscale = 5)
     plt.tight_layout()
 
@@ -72,7 +75,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
         plt.savefig(out_file)
     plt.close(fig)
 
-def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binWidth, out_file = None):
+def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binWidth, expected_cc, expected_ch, out_file = None):
     font = {'family' : 'DejaVu Sans',
         'size' : 12}
 
@@ -87,8 +90,8 @@ def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binW
 
     maxY = max(np.max(cc_hist[0]), np.max(ch_hist[0]))
 
-    plt.plot([1.455, 1.455], [0, maxY * 1.25], color = 'blue', linestyle = ':')
-    plt.plot([1.099, 1.099], [0, maxY * 1.25], color = 'orange', linestyle = ':')
+    plt.plot([expected_cc, expected_cc], [0, maxY * 1.25], color = 'blue', linestyle = ':')
+    plt.plot([expected_ch, expected_ch], [0, maxY * 1.25], color = 'orange', linestyle = ':')
 
     plt.title("Histogram of Average " + input_mol.capitalize() + " Bond Lengths Over Time for " + str(input_ticks) + " Ticks, dt = " + str(dt * time_unit) + "s")
     plt.xlabel('Bond Length (Å)')
