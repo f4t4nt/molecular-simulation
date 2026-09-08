@@ -2,6 +2,12 @@
 
 We developed a program to simulate the dynamics of hydrocarbon molecules using the consistent force field method devised by Shneior Lifson and Arieh Warshel.
 
+# Update (2026-09-07)
+
+Revisited this project and fixed a bug in the potential-energy calculations that was producing inaccurate dynamics — most visibly, benzene's ring bending out of its planar shape instead of staying rigid. Also replaced the old VPython/websocket viewer with a self-contained interactive HTML viewer and cleaned up the simulation CLI.
+
+The original version of this repo, as originally submitted, remains available at [`5fd783c`](https://github.com/f4t4nt/molecular-simulation/tree/5fd783c7d19ee6d77d2b2c405a6d21602bd6cb93).
+
 # Setup
 
 ```
@@ -22,7 +28,9 @@ pip install "jax[cuda12]"
 python mol_simulation.py ethane
 ```
 
-`mol_display.py` reads a molecule's output directory and renders it with VPython, which we screen-recorded and have posted on YouTube, also linked below:
+By default it runs 10,000 iterations; pass `--duration <picoseconds>` instead to control how much simulated time to run, e.g. `--duration 0.01`. Run `python mol_simulation.py --help` for the full list of options (timestep, randomization, etc).
+
+`mol_display.py` reads a molecule's output directory and renders it as a self-contained, interactive HTML viewer (3D molecule view plus energy and bond-length charts), e.g.:
 
 ```
 python mol_display.py ethane
@@ -36,4 +44,4 @@ Original consistent force field paper: S. Lifson and A. Warshel, "Consistent For
 
 CSV files (7zip or equivalent required to open): https://drive.google.com/file/d/1DCI9PWngpDCOwGWAZNWLLJBHga-x_eFh
 
-YouTube: https://youtu.be/iCUkThONkhc
+YouTube (screen recording of the original VPython viewer): https://youtu.be/iCUkThONkhc
