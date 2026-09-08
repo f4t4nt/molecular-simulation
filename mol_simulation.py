@@ -1,15 +1,17 @@
 import argparse as ap
 import csv
-import jax.numpy as np
-import math as math
+import math
 import os
-import time as time
+import time
+
+import jax.numpy as np
 
 from constants import time_unit
 from history import get_df_posHistoryArr, get_df_tickHistoryArr
 from molecules import molecules
-from plotting import draw_energy, draw_bond, draw_bond_histogram
+from plotting import draw_bond, draw_bond_histogram, draw_energy
 from simulation import mol
+
 
 def Main(
   input_mol,
@@ -45,7 +47,7 @@ def Main(
   totalTicks = input_ticks
   scale = input_scale
 
-  rows = int(math.ceil((input_ticks + 1) / input_scale))
+  rows = math.ceil((input_ticks + 1) / input_scale)
   natoms = len(sim.atomArray)
 
   posHistoryDf = None
@@ -65,7 +67,7 @@ def Main(
         stabilized = True
 
   ranges = getRecordingRanges(totalTicks, 10_000_000, scale)
-  pctDenominator = int(totalTicks / (100 * scale))
+  pctDenominator = max(1, int(totalTicks / (100 * scale)))
   lastPct = 0
 
   for rngIdx in range(0, len(ranges), 2):
@@ -84,7 +86,7 @@ def Main(
       sim.t += sim.dt * time_unit * scale
 
       if int(i / scale) / pctDenominator > lastPct:
-        print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
+        print(f"--- {int(100 * (sim.currTick / (totalTicks / scale)))!s}% {time.perf_counter() - start_time} seconds ---")
         lastPct = math.ceil(int(i / scale) / pctDenominator)
 
       res = sim.record_j(sim.t, pos, vel)
@@ -137,7 +139,7 @@ def Main(
       firstPercentTick = int(curRng.start / scale) / pctDenominator
       lastPercentTick = int(curRng.stop / scale) / pctDenominator
 
-      step = int(int((curRng.stop - curRng.start) / (lastPercentTick - firstPercentTick)))
+      step = int((curRng.stop - curRng.start) / (lastPercentTick - firstPercentTick))
 
       for i in range(curRng.start, curRng.stop, step):
         (accel, vel, pos) = sim.update_loop_j(step, (accel, vel, pos))
@@ -145,7 +147,7 @@ def Main(
         sim.t += sim.dt * time_unit * step
 
         if int(i / scale) / pctDenominator > lastPct:
-          print("--- %s%% %s seconds ---" % (str(int(100 * (sim.currTick / (totalTicks / scale)))), time.perf_counter() - start_time))
+          print(f"--- {int(100 * (sim.currTick / (totalTicks / scale)))!s}% {time.perf_counter() - start_time} seconds ---")
           lastPct = math.ceil(int(i / scale) / pctDenominator)
         sim.currTick += step / scale
 
@@ -215,17 +217,22 @@ parser = ap.ArgumentParser(description="Simulate one of following molecules: eth
 parser.add_argument('molecule', help = "molecule name")
 parser.add_argument('--dt', type=float, dest='dt', default = 1e-18, help = "size of timestep (default: 1e-18")
 parser.add_argument('--randomize_const', type=float, dest='randomize_const', default = 0.05, help = "amount of randomization in initial positions, 0 for no randomization (default: 0.05)")
-parser.add_argument('--iterations', type=int, dest = 'iterations', default= 10_000, help = 'number of iterations (default: 10,000)')
+parser.add_argument('--iterations', type=int, dest = 'iterations', default= 10_000, help = 'number of iterations (default: 10,000; ignored if --duration is given)')
+parser.add_argument('--duration', type=float, dest = 'duration', default = None, help = 'total simulated time in picoseconds, e.g. --duration 0.01; overrides --iterations')
 parser.add_argument('--scale', type=int, dest = 'scale', default=100, help = 'create output per scale iteration (default: 100)')
 parser.add_argument('--stablization_const', type=float, dest = 'stablization_const', default=0, help = 'molecule will be frozen until kinetic_E>potential_E*stablization_const (default: 0)')
 
 if __name__ == "__main__":
   args = parser.parse_args()
   if args:
+    iterations = args.iterations
+    if args.duration is not None:
+      iterations = round(args.duration * 1e-12 / args.dt)
+
     Main(
       args.molecule,
       args.dt,
       args.randomize_const,
-      args.iterations,
+      iterations,
       args.scale,
       args.stablization_const)

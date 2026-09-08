@@ -1,5 +1,6 @@
 from enum import Enum
-import jax as jax
+
+import jax
 import jax.numpy as np
 
 # jax_enable_x64 must be set before any JAX array is created, including the

@@ -1,10 +1,18 @@
-import jax as jax
-import jax.numpy as np
 import random as rand
 
-from molecules import atoms
+import jax
+import jax.numpy as np
+
 from constants import (
   A2m,
+  X_cc,
+  X_cc_aromatic,
+  X_ccc,
+  X_ccc_aromatic,
+  X_cch,
+  X_cch_aromatic,
+  X_ch,
+  X_hch,
   amu2kg,
   angleEnergyK_ccc,
   angleEnergyK_ccc_aromatic,
@@ -20,15 +28,9 @@ from constants import (
   mass_unit,
   time_unit,
   vmap_funcs,
-  X_cc,
-  X_cc_aromatic,
-  X_cch,
-  X_cch_aromatic,
-  X_ccc,
-  X_ccc_aromatic,
-  X_ch,
-  X_hch,
 )
+from molecules import atoms
+
 
 class mol:
   def __init__ (self, atoms, dt, randomize):

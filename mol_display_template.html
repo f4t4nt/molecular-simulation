@@ -1,0 +1,567 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>@@TITLE_NAME@@ Vibrational Dynamics</title>
+<style>
+:root{color-scheme:light}
+body{
+  margin:0;
+  background:#fff;
+  color:#111;
+  font-family:system-ui, sans-serif;
+  padding:16px;
+}
+.page{max-width:1200px;margin:0 auto;}
+
+header{margin-bottom:12px;}
+header h1{font-size:20px;font-weight:600;margin:0 0 4px;}
+header p{margin:0 0 8px;color:#555;font-size:13px;}
+.params{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:#333;margin:0;}
+.params div{display:flex;gap:4px;}
+.params dt{color:#777;}
+.params dd{margin:0;font-weight:600;}
+
+.grid{
+  display:grid;
+  grid-template-columns:minmax(320px, 1.15fr) minmax(320px, 1fr);
+  gap:16px;
+  align-items:stretch;
+}
+@media (max-width: 860px){ .grid{grid-template-columns:1fr;} }
+
+.charts-panel{display:flex;flex-direction:column;gap:16px;}
+.charts-panel .chart-wrap{flex:1;display:flex;flex-direction:column;margin-bottom:0;}
+.charts-panel .chart-wrap .chart-svg{flex:1;min-height:0;height:auto;}
+
+.panel{
+  border:1px solid #ccc;
+  padding:12px;
+  margin-bottom:16px;
+}
+.panel h2{
+  font-size:13px;
+  font-weight:600;
+  color:#333;
+  margin:0 0 8px;
+  display:flex;
+  justify-content:space-between;
+}
+.panel h2 .val{color:#111;font-weight:400;}
+
+#canvas-wrap{
+  position:relative;
+  aspect-ratio:4/3;
+  background:#000;
+  cursor:grab;
+}
+#canvas-wrap:active{cursor:grabbing;}
+#canvas-wrap canvas{display:block;width:100%;height:100%;}
+.hud{
+  position:absolute;
+  top:8px;
+  left:10px;
+  font-size:12px;
+  color:#fff;
+  line-height:1.5;
+  pointer-events:none;
+}
+
+.controls{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;}
+#scrub{flex:1 1 160px;min-width:120px;}
+.speed-wrap{display:flex;align-items:center;gap:6px;font-size:12px;color:#555;}
+
+.legend-row{display:flex;gap:14px;margin-top:8px;font-size:12px;color:#555;}
+.legend-row .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;}
+.dot.carbon{background:#666;}
+.dot.hydrogen{background:#eee;border:1px solid #999;}
+
+.chart-svg{width:100%;height:auto;display:block;}
+.chart-svg text{fill:#666;}
+.chart-svg .axis-line{stroke:#999;}
+.chart-svg .grid-line{stroke:#e5e5e5;stroke-dasharray:2 3;}
+.chart-svg .ref-line{fill:none;stroke-width:1.6;stroke:#555;}
+.chart-svg .playhead{stroke:#111;stroke-width:1;opacity:0.55;}
+.chart-svg .series-pe{stroke:#c1622b;fill:none;stroke-width:1.6;}
+.chart-svg .series-ke{stroke:#0f8b8d;fill:none;stroke-width:1.6;}
+.chart-svg .series-total{stroke:#555;fill:none;stroke-width:1.6;}
+.chart-svg .series-cc{stroke:#c1622b;fill:none;stroke-width:1.6;}
+.chart-svg .series-ch{stroke:#0f8b8d;fill:none;stroke-width:1.6;}
+.chart-svg .bar-cc{fill:#c1622b;opacity:0.75;}
+.chart-svg .bar-ch{fill:#0f8b8d;opacity:0.75;}
+
+.legend-inline{display:flex;gap:14px;font-size:11px;color:#555;margin-top:6px;flex-wrap:wrap;}
+.legend-inline span{display:inline-flex;align-items:center;gap:5px;}
+.legend-inline i{width:14px;height:2px;display:inline-block;}
+.legend-inline i.swatch-pe{background:#c1622b;}
+.legend-inline i.swatch-ke{background:#0f8b8d;}
+.legend-inline i.swatch-total{background:#999;}
+.legend-inline i.dashed{background:#555;}
+#driftVal.warn{color:#c1622b;font-weight:600;}
+
+.tooltip{
+  position:absolute;
+  pointer-events:none;
+  background:#fff;
+  border:1px solid #ccc;
+  padding:5px 7px;
+  font-size:11px;
+  line-height:1.5;
+  opacity:0;
+  white-space:nowrap;
+  z-index:5;
+}
+.chart-wrap{position:relative;}
+
+@media (prefers-reduced-motion: reduce){
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+</style>
+</head><body>
+
+<div class="page">
+  <header>
+    <h1>@@TITLE_NAME@@</h1>
+    <dl class="params">@@PARAMS@@</dl>
+  </header>
+
+  <main class="grid">
+    <section class="panel">
+      <h2>Molecule <span class="val" id="frameLabel">frame 1 / 1</span></h2>
+      <div id="canvas-wrap">
+        <canvas id="scene"></canvas>
+        <div class="hud">
+          <div id="hudTime">0.000 ps</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="playBtn">Pause</button>
+        <input type="range" id="scrub" min="0" max="0" value="0" step="1" aria-label="Scrub timeline">
+        <div class="speed-wrap">Speed <input type="range" id="speed" min="1" max="8" value="2" step="1" aria-label="Playback speed"><span id="speedLabel">2&times;</span></div>
+      </div>
+      <div class="legend-row">
+        @@LEGEND@@
+        <span style="margin-left:auto;color:#555;">drag to orbit &middot; scroll to zoom</span>
+      </div>
+    </section>
+
+    <section class="charts-panel">
+      <div class="panel chart-wrap">
+        <h2>Energy <span class="val" id="energyVal">&mdash;</span></h2>
+        <svg class="chart-svg" id="energyChart" viewBox="0 0 560 200" preserveAspectRatio="none"></svg>
+        <div class="legend-inline">
+          <span><i class="swatch-pe"></i>Potential</span>
+          <span><i class="swatch-ke"></i>Kinetic</span>
+          <span><i class="dashed"></i>Total</span>
+          <span id="driftVal" style="margin-left:auto;"></span>
+        </div>
+        <div class="tooltip" id="energyTip"></div>
+      </div>
+      <div class="panel chart-wrap">
+        <h2>Average Bond Length <span class="val" id="bondVal">&mdash;</span></h2>
+        <svg class="chart-svg" id="bondChart" viewBox="0 0 560 200" preserveAspectRatio="none"></svg>
+        <div class="legend-inline">
+          <span><i class="swatch-pe"></i>C&ndash;C</span>
+          <span><i class="swatch-ke"></i>C&ndash;H</span>
+          <span><i class="dashed"></i>GAFF equilibrium</span>
+        </div>
+        <div class="tooltip" id="bondTip"></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="panel">
+    <h2>Bond Length Distribution <span class="val">over full run</span></h2>
+    <svg class="chart-svg" id="histChart" viewBox="0 0 1180 200" preserveAspectRatio="none" style="height:180px;"></svg>
+    <div class="legend-inline">
+      <span><i class="swatch-pe"></i>C&ndash;C</span>
+      <span><i class="swatch-ke"></i>C&ndash;H</span>
+      <span><i class="dashed"></i>GAFF equilibrium (C&ndash;C, C&ndash;H)</span>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+window.__MOL_DATA__ = @@DATA_JSON@@;
+const DATA = window.__MOL_DATA__;
+
+const N = DATA.frames.length;
+const CC_TARGET = DATA.meta.ccTarget, CH_TARGET = DATA.meta.chTarget;
+
+// ---------- three.js scene ----------
+const wrap = document.getElementById('canvas-wrap');
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false});
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05070a);
+scene.fog = new THREE.Fog(0x05070a, 8, 16);
+
+const camera = new THREE.PerspectiveCamera(40, 4/3, 0.1, 100);
+let camDist = 6.5, camAz = 0.6, camEl = 0.35;
+function updateCamera(){
+  camera.position.set(
+    camDist*Math.cos(camEl)*Math.sin(camAz),
+    camDist*Math.sin(camEl),
+    camDist*Math.cos(camEl)*Math.cos(camAz)
+  );
+  camera.lookAt(0,0,0);
+}
+updateCamera();
+
+scene.add(new THREE.HemisphereLight(0xdfffff, 0x1a1a1a, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 1.0);
+key.position.set(4,6,5);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x3fd9d1, 0.35);
+rim.position.set(-5,-2,-4);
+scene.add(rim);
+
+const TYPE_COLOR = {C:0x8a8f8f, H:0xf2f5f4};
+const TYPE_RADIUS = {C:0.35, H:0.125};
+const carbonMat = new THREE.MeshStandardMaterial({color:TYPE_COLOR.C, roughness:0.45, metalness:0.1});
+const hydrogenMat = new THREE.MeshStandardMaterial({color:TYPE_COLOR.H, roughness:0.3, metalness:0.05});
+function matForType(t){ return t === 'C' ? carbonMat : hydrogenMat; }
+function radiusForType(t){ return TYPE_RADIUS[t] ?? 0.2; }
+
+const sphereGeo = new THREE.SphereGeometry(1, 24, 18);
+const cylGeo = new THREE.CylinderGeometry(1,1,1,12,1,true);
+
+const atomMeshes = DATA.types.map(t => {
+  const m = new THREE.Mesh(sphereGeo, matForType(t));
+  m.scale.setScalar(radiusForType(t));
+  scene.add(m);
+  return m;
+});
+
+const BOND_GAP = 0.09;
+const BOND_RADIUS = 0.05;
+const UP = new THREE.Vector3(0,1,0);
+const RIGHT = new THREE.Vector3(1,0,0);
+
+const bondObjs = DATA.bonds.map(b => {
+  const order = b.order || 1;
+  const lines = [];
+  for(let i=0;i<order;i++){
+    const halfA = new THREE.Mesh(cylGeo, matForType(DATA.types[b.a]));
+    const halfB = new THREE.Mesh(cylGeo, matForType(DATA.types[b.b]));
+    scene.add(halfA); scene.add(halfB);
+    lines.push([halfA, halfB]);
+  }
+  return {
+    a: b.a, b: b.b, order,
+    ra: radiusForType(DATA.types[b.a]), rb: radiusForType(DATA.types[b.b]),
+    ring: b.ring, lines,
+  };
+});
+
+function placeHalf(mesh, start, end){
+  const dir = new THREE.Vector3().subVectors(end, start);
+  const len = dir.length();
+  mesh.position.copy(start).add(end).multiplyScalar(0.5);
+  mesh.scale.set(BOND_RADIUS, Math.max(len, 0.001), BOND_RADIUS);
+  if(len > 1e-6) mesh.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+}
+
+function ringCenter(ring, pts){
+  const c = new THREE.Vector3();
+  ring.forEach(i => c.add(pts[i]));
+  return c.multiplyScalar(1/ring.length);
+}
+
+function updateBonds(pts){
+  bondObjs.forEach(bond => {
+    const pa = pts[bond.a], pb = pts[bond.b];
+    const full = new THREE.Vector3().subVectors(pb, pa);
+    const fullLen = full.length();
+    const direction = fullLen > 1e-9 ? full.clone().normalize() : new THREE.Vector3(1,0,0);
+
+    let perp = new THREE.Vector3();
+    if(bond.order > 1){
+      let ref;
+      if(bond.ring){
+        ref = ringCenter(bond.ring, pts).sub(new THREE.Vector3().addVectors(pa,pb).multiplyScalar(0.5));
+      } else {
+        ref = (Math.abs(direction.dot(UP)) < 0.9 ? UP : RIGHT).clone();
+      }
+      ref.sub(direction.clone().multiplyScalar(ref.dot(direction)));
+      if(ref.length() > 1e-9) perp = ref.normalize().multiplyScalar(BOND_GAP);
+    }
+
+    bond.lines.forEach(([halfA, halfB], i) => {
+      const shift = bond.order > 1 ? (i - (bond.order-1)/2) : 0;
+      const off = perp.clone().multiplyScalar(shift);
+      const aa = pa.clone().add(off), bb = pb.clone().add(off);
+      const lenA = (fullLen - bond.rb + bond.ra) / 2;
+      const lenB = (fullLen - bond.ra + bond.rb) / 2;
+      const endA = aa.clone().add(direction.clone().multiplyScalar(lenA));
+      const endB = bb.clone().sub(direction.clone().multiplyScalar(lenB));
+      placeHalf(halfA, aa, endA);
+      placeHalf(halfB, bb, endB);
+    });
+  });
+}
+
+function applyFrame(idx){
+  const f = DATA.frames[idx];
+  const pts = f.pos.map(p => new THREE.Vector3(p[0], p[1], p[2]));
+  atomMeshes.forEach((m,i) => m.position.copy(pts[i]));
+  updateBonds(pts);
+}
+
+function resize(){
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h, false);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(wrap);
+resize();
+
+let dragging = false, lastX = 0, lastY = 0;
+wrap.addEventListener('pointerdown', e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  wrap.setPointerCapture(e.pointerId);
+});
+wrap.addEventListener('pointermove', e => {
+  if(!dragging) return;
+  camAz -= (e.clientX - lastX) * 0.007;
+  camEl = Math.max(-1.2, Math.min(1.2, camEl + (e.clientY - lastY) * 0.007));
+  lastX = e.clientX; lastY = e.clientY;
+  updateCamera();
+});
+function endDrag(){ dragging = false; }
+wrap.addEventListener('pointerup', endDrag);
+wrap.addEventListener('pointerleave', endDrag);
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  camDist = Math.max(3, Math.min(14, camDist + e.deltaY * 0.003));
+  updateCamera();
+}, {passive:false});
+
+// ---------- playback ----------
+const scrub = document.getElementById('scrub');
+const playBtn = document.getElementById('playBtn');
+const speedInput = document.getElementById('speed');
+const speedLabel = document.getElementById('speedLabel');
+const frameLabel = document.getElementById('frameLabel');
+const hudTime = document.getElementById('hudTime');
+const energyVal = document.getElementById('energyVal');
+const bondVal = document.getElementById('bondVal');
+const driftVal = document.getElementById('driftVal');
+
+scrub.max = N - 1;
+
+let frame = 0, playing = true, speed = 2, acc = 0, lastTs = null;
+const BASE_FPS = 24;
+
+// total energy at t=0 -- everything downstream compares against this to
+// show how much the integrator's energy conservation has drifted.
+const initialTotal = DATA.frames[0].pe + DATA.frames[0].ke;
+
+function fmtTime(sec){
+  const fs = sec * 1e15;
+  return fs < 1000 ? fs.toFixed(1) + ' fs' : (sec*1e12).toFixed(3) + ' ps';
+}
+
+function setFrame(idx){
+  frame = ((idx % N) + N) % N;
+  applyFrame(frame);
+  scrub.value = frame;
+  const f = DATA.frames[frame];
+  const total = f.pe + f.ke;
+  const drift = total - initialTotal;
+  const driftPct = initialTotal !== 0 ? drift / initialTotal * 100 : 0;
+
+  frameLabel.textContent = `frame ${frame+1} / ${N}`;
+  hudTime.textContent = fmtTime(f.t);
+  energyVal.textContent = `${f.pe.toFixed(1)} + ${f.ke.toFixed(1)} = ${total.toFixed(1)} zJ`;
+  bondVal.textContent = `CC ${f.cc.toFixed(4)} Å / CH ${f.ch.toFixed(4)} Å`;
+  driftVal.textContent = `drift from t=0: ${drift>=0?'+':''}${drift.toFixed(2)} zJ (${driftPct>=0?'+':''}${driftPct.toFixed(2)}%)`;
+  driftVal.classList.toggle('warn', Math.abs(driftPct) > 1);
+  moveEnergyPlayhead(frame);
+  moveBondPlayhead(frame);
+}
+
+scrub.addEventListener('input', () => { playing = false; playBtn.textContent = 'Play'; setFrame(parseInt(scrub.value,10)); });
+playBtn.addEventListener('click', () => {
+  playing = !playing;
+  playBtn.textContent = playing ? 'Pause' : 'Play';
+});
+speedInput.addEventListener('input', () => {
+  speed = parseInt(speedInput.value,10);
+  speedLabel.textContent = speed + '×';
+});
+
+function tick(ts){
+  if(lastTs === null) lastTs = ts;
+  const dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+
+  if(playing && N > 1){
+    acc += dt * BASE_FPS * speed;
+    while(acc >= 1){ setFrame(frame + 1); acc -= 1; }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+
+// ---------- charts ----------
+function buildLineChart(svgEl, series, opts){
+  const W = 560, H = 200, padL = 46, padR = 10, padT = 10, padB = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xs = DATA.frames.map(f => f.t);
+  const xMin = xs[0], xMax = xs[xs.length-1];
+
+  let yMin = Infinity, yMax = -Infinity;
+  series.forEach(s => s.values.forEach(v => { if(v<yMin) yMin=v; if(v>yMax) yMax=v; }));
+  if(opts.refLines) opts.refLines.forEach(r => { if(r<yMin) yMin=r; if(r>yMax) yMax=r; });
+  const pad = (yMax - yMin) * 0.08 || 1;
+  yMin -= pad; yMax += pad;
+
+  const x = t => padL + (t - xMin) / (xMax - xMin || 1) * plotW;
+  const y = v => padT + (1 - (v - yMin) / (yMax - yMin || 1)) * plotH;
+
+  let svg = '';
+  const yTicks = 4;
+  for(let i=0;i<=yTicks;i++){
+    const v = yMin + (yMax-yMin)*i/yTicks;
+    const yy = y(v);
+    svg += `<line class="grid-line" x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}"/>`;
+    svg += `<text x="${padL-6}" y="${yy+3}" font-size="9" text-anchor="end">${opts.yFmt(v)}</text>`;
+  }
+  const xTicks = 4;
+  for(let i=0;i<=xTicks;i++){
+    const t = xMin + (xMax-xMin)*i/xTicks;
+    const xx = x(t);
+    svg += `<text x="${xx}" y="${H-6}" font-size="9" text-anchor="middle">${opts.xFmt(t)}</text>`;
+  }
+  svg += `<line class="axis-line" x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}"/>`;
+  svg += `<line class="axis-line" x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}"/>`;
+
+  if(opts.refLines) opts.refLines.forEach(r => {
+    svg += `<line class="ref-line" x1="${padL}" y1="${y(r)}" x2="${W-padR}" y2="${y(r)}"/>`;
+  });
+
+  series.forEach(s => {
+    const d = s.values.map((v,i) => `${i===0?'M':'L'}${x(xs[i]).toFixed(2)},${y(v).toFixed(2)}`).join('');
+    svg += `<path class="${s.cls}" d="${d}"/>`;
+  });
+
+  svg += `<line class="playhead" id="${opts.playheadId}" x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}"/>`;
+
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = svg;
+
+  return {x, y, padL, padR, padT, padB, plotW, plotH, xMin, xMax, W, H};
+}
+
+const yFmtE = v => v.toFixed(0);
+const xFmtT = t => (t*1e12).toFixed(2) + 'ps';
+const yFmtB = v => v.toFixed(3);
+
+const energyGeom = buildLineChart(document.getElementById('energyChart'), [
+  {values: DATA.frames.map(f=>f.pe), cls:'series-pe'},
+  {values: DATA.frames.map(f=>f.ke), cls:'series-ke'},
+  {values: DATA.frames.map(f=>f.pe+f.ke), cls:'series-total'},
+], {yFmt:yFmtE, xFmt:xFmtT, playheadId:'energyPlayhead'});
+
+const bondGeom = buildLineChart(document.getElementById('bondChart'), [
+  {values: DATA.frames.map(f=>f.cc), cls:'series-cc'},
+  {values: DATA.frames.map(f=>f.ch), cls:'series-ch'},
+], {yFmt:yFmtB, xFmt:xFmtT, playheadId:'bondPlayhead', refLines:[CC_TARGET, CH_TARGET]});
+
+function moveEnergyPlayhead(idx){
+  const el = document.getElementById('energyPlayhead');
+  if(!el) return;
+  const xx = energyGeom.x(DATA.frames[idx].t);
+  el.setAttribute('x1', xx); el.setAttribute('x2', xx);
+}
+function moveBondPlayhead(idx){
+  const el = document.getElementById('bondPlayhead');
+  if(!el) return;
+  const xx = bondGeom.x(DATA.frames[idx].t);
+  el.setAttribute('x1', xx); el.setAttribute('x2', xx);
+}
+
+function attachHover(svgEl, geom, tipEl, fmt){
+  svgEl.addEventListener('mousemove', e => {
+    const rect = svgEl.getBoundingClientRect();
+    const scaleX = geom.W / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const frac = Math.max(0, Math.min(1, (px - geom.padL) / geom.plotW));
+    const idx = Math.round(frac * (N-1));
+    const f = DATA.frames[idx];
+    tipEl.style.opacity = 1;
+    tipEl.style.left = Math.min(rect.width - 120, e.clientX - rect.left + 12) + 'px';
+    tipEl.style.top = (e.clientY - rect.top - 40) + 'px';
+    tipEl.innerHTML = fmt(f);
+  });
+  svgEl.addEventListener('mouseleave', () => { tipEl.style.opacity = 0; });
+  svgEl.addEventListener('click', e => {
+    const rect = svgEl.getBoundingClientRect();
+    const scaleX = geom.W / rect.width;
+    const px = (e.clientX - rect.left) * scaleX;
+    const frac = Math.max(0, Math.min(1, (px - geom.padL) / geom.plotW));
+    playing = false; playBtn.textContent = 'Play';
+    setFrame(Math.round(frac * (N-1)));
+  });
+}
+
+attachHover(document.getElementById('energyChart'), energyGeom, document.getElementById('energyTip'),
+  f => `${fmtTime(f.t)}<br>PE ${f.pe.toFixed(2)} zJ<br>KE ${f.ke.toFixed(2)} zJ`);
+function fmtDelta(v, target){
+  const d = v - target;
+  return `${d>=0?'+':''}${d.toFixed(4)} Å from ${target.toFixed(4)} Å`;
+}
+attachHover(document.getElementById('bondChart'), bondGeom, document.getElementById('bondTip'),
+  f => `${fmtTime(f.t)}<br>C&ndash;C ${f.cc.toFixed(4)} Å (${fmtDelta(f.cc, CC_TARGET)})<br>C&ndash;H ${f.ch.toFixed(4)} Å (${fmtDelta(f.ch, CH_TARGET)})`);
+
+// ---------- histogram ----------
+function buildHistogram(svgEl, ccVals, chVals){
+  const W = 1180, H = 200, padL = 46, padR = 20, padT = 10, padB = 24;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const binWidth = 0.0015;
+  function hist(vals){
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const nb = Math.max(1, Math.ceil((mx-mn)/binWidth));
+    const bins = new Array(nb).fill(0);
+    vals.forEach(v => { let b = Math.floor((v-mn)/binWidth); if(b>=nb) b=nb-1; if(b<0) b=0; bins[b]++; });
+    return {bins, mn, mx, nb};
+  }
+  const cc = hist(ccVals), ch = hist(chVals);
+  const xMin = Math.min(cc.mn, ch.mn) - binWidth, xMax = Math.max(cc.mx, ch.mx) + binWidth;
+  const yMax = Math.max(...cc.bins, ...ch.bins) * 1.15;
+  const x = v => padL + (v-xMin)/(xMax-xMin) * plotW;
+  const y = c => padT + (1 - c/yMax) * plotH;
+  const barW = v => (x(v+binWidth) - x(v));
+
+  let svg = '';
+  for(let i=0;i<=4;i++){
+    const c = yMax*i/4;
+    const yy = y(c);
+    svg += `<line class="grid-line" x1="${padL}" y1="${yy}" x2="${W-padR}" y2="${yy}"/>`;
+    svg += `<text x="${padL-6}" y="${yy+3}" font-size="9" text-anchor="end">${Math.round(c)}</text>`;
+  }
+  for(let i=0;i<=6;i++){
+    const v = xMin + (xMax-xMin)*i/6;
+    svg += `<text x="${x(v)}" y="${H-6}" font-size="9" text-anchor="middle">${v.toFixed(3)}</text>`;
+  }
+  svg += `<line class="axis-line" x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}"/>`;
+  svg += `<line class="axis-line" x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}"/>`;
+
+  cc.bins.forEach((c,i) => { if(!c) return; const v = cc.mn + i*binWidth; svg += `<rect class="bar-cc" x="${x(v)}" y="${y(c)}" width="${barW(v)-1}" height="${y(0)-y(c)}"/>`; });
+  ch.bins.forEach((c,i) => { if(!c) return; const v = ch.mn + i*binWidth; svg += `<rect class="bar-ch" x="${x(v)}" y="${y(c)}" width="${barW(v)-1}" height="${y(0)-y(c)}"/>`; });
+
+  [CC_TARGET, CH_TARGET].forEach(t => {
+    svg += `<line class="ref-line" x1="${x(t)}" y1="${padT}" x2="${x(t)}" y2="${H-padB}"/>`;
+  });
+
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = svg;
+}
+buildHistogram(document.getElementById('histChart'), DATA.frames.map(f=>f.cc), DATA.frames.map(f=>f.ch));
+
+setFrame(0);
+requestAnimationFrame(tick);
+</script>
+</body></html>
