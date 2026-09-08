@@ -1,6 +1,6 @@
 > **Update (2026-09-07):** Revisited this project and fixed a bug in the potential-energy calculations that was producing inaccurate dynamics, most visibly benzene's ring bending out of its planar shape instead of staying rigid. The original version of this repo remains available at [`5fd783c`](https://github.com/f4t4nt/molecular-simulation/tree/5fd783c7d19ee6d77d2b2c405a6d21602bd6cb93).
 
-# MolSim
+# Hydrocarbon Molecular Simulation
 
 We developed a program to simulate the dynamics of hydrocarbon molecules using the consistent force field method devised by Shneior Lifson and Arieh Warshel.
 
