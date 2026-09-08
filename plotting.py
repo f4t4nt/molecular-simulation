@@ -1,5 +1,21 @@
+import matplotlib
+
+# Only savefig() is used here, never a live window, so force the
+# non-interactive Agg backend. The default interactive backend (tkagg on
+# this machine) creates a real Tk/X11 window+pixmap sized to the figure
+# even for savefig-only usage; at the figure widths below (hundreds of
+# inches for large datasets) that pixmap allocation fails under WSLg
+# (X_CreatePixmap BadAlloc), alongside CUDA OOM from its GPU-backed
+# compositing surface colliding with JAX's reserved VRAM.
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import numpy as np
+
+# Cap in inches. dataLen for these plots is now in the tens of thousands of
+# rows; scaling width linearly with dataLen up to 600in produces
+# multi-thousand-pixel-wide canvases with no benefit over a fixed cap.
+MAX_FIGURE_WIDTH = 40
 
 
 def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
@@ -9,7 +25,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), 600), 5))
+    fig = plt.figure(figsize = (min(max(10, dataLen / 100 * (q_end - q_start) / 4), MAX_FIGURE_WIDTH), 5))
     plt.rc('font', **font)
     plt.scatter(energyHistory["time"][rng], energyHistory["potentialE"][rng], label = 'Potential', s = 2.5)
     plt.scatter(energyHistory["time"][rng], energyHistory["kineticE"][rng], label = 'Kinetic', s = 2.5)
@@ -26,6 +42,7 @@ def draw_energy(energyHistory, input_mol, input_ticks, dt, time_unit, q_start, q
         plt.figure()
     else:
         plt.savefig(out_file)
+    plt.close(fig)
 
 def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end, out_file = None, title_suffix = ""):
     dataLen = bondHistory["time"].count()
@@ -34,7 +51,7 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
 
     rng = range(int(q_start * dataLen / 4), int(q_end * dataLen / 4))
 
-    plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), 600), 5))
+    fig = plt.figure(figsize = (min(max(10, dataLen / 400 * (q_end - q_start) / 4), MAX_FIGURE_WIDTH), 5))
     plt.rc('font', **font)
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.455, 1.455], color = 'blue', linestyle = ':')
     plt.plot([bondHistory["time"][int(q_start * dataLen / 4)], bondHistory["time"][int(q_end * dataLen / 4) - 1]], [1.099, 1.099], color = 'orange', linestyle = ':')
@@ -53,12 +70,13 @@ def draw_bond(bondHistory, input_mol, input_ticks, dt, time_unit, q_start, q_end
         plt.figure()
     else:
         plt.savefig(out_file)
+    plt.close(fig)
 
 def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binWidth, out_file = None):
     font = {'family' : 'DejaVu Sans',
         'size' : 12}
 
-    plt.figure(figsize = (10, 5))
+    fig = plt.figure(figsize = (10, 5))
     plt.rc('font', **font)
 
     cc_bins = np.arange(min(bondHistory["CC_Bonds"]), max(bondHistory["CC_Bonds"]) + binWidth, binWidth)
@@ -82,3 +100,4 @@ def draw_bond_histogram(bondHistory, input_mol, input_ticks, dt, time_unit, binW
         plt.figure()
     else:
         plt.savefig(out_file)
+    plt.close(fig)
